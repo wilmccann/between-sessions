@@ -1,0 +1,35 @@
+# Dependencies and build output
+node_modules/
+dist/
+build/
+cdk.out/
+*.tsbuildinfo
+coverage/
+
+# Environment and secrets: never commit tokens or personal config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Bee data exports and local snapshots (personal data)
+bee-sync/
+snapshots/
+exports/
+*.bee.json
+
+# Third-party checkouts (e.g. the Alexa skill MCP bridge)
+vendor/
+
+# Tooling
+.claude/settings.local.json
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
