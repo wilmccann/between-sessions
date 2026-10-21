@@ -8,9 +8,10 @@ const SeriesSchema = z.object({
   name: z.string(),
   timezone: z.string(), // IANA, e.g. America/New_York
   weekday: z.number().int().min(0).max(6), // 0 = Sunday
-  windowStart: z.string().regex(/^\d{2}:\d{2}$/), // session start no earlier than
-  windowEnd: z.string().regex(/^\d{2}:\d{2}$/), // and no later than
-  minDurationMinutes: z.number().int().positive().default(30),
+  windowStart: z.string().regex(/^\d{2}:\d{2}$/), // when the session usually starts
+  windowEnd: z.string().regex(/^\d{2}:\d{2}$/), // and ends, local time
+  minOverlapMinutes: z.number().int().positive().default(10), // per conversation
+  minDurationMinutes: z.number().int().positive().default(30), // total overlap
   insightWindowHours: z.number().int().positive().default(72),
 });
 

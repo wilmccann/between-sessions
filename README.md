@@ -49,7 +49,7 @@ corepack yarn check                # call get_last_session; prints shape only
 corepack yarn show                 # same call, full content
 ```
 
-A *series* matches sessions by weekday and a local start-time window, for example "Tuesdays between 17:00 and 19:00 in America/Los_Angeles". The longest matching conversation of the day becomes the session, and the insights Bee generates in the following `insightWindowHours` are attached to it.
+A *series* matches sessions by weekday and the local time the session usually runs, for example "Tuesdays from 17:00 to 18:00 in America/Los_Angeles". Bee can split one session into several conversations, so every conversation that overlaps that window by at least `minOverlapMinutes` becomes part of the session, as long as the parts add up to `minDurationMinutes`. Bee writes insights in nightly batches that repeat themes from earlier nights, so only the first batch after the session (within `insightWindowHours`) is attached.
 
 ## License
 

@@ -1,5 +1,5 @@
-// Matches Bee conversations to a Series and gathers the insights Bee
-// generated in the hours after each session.
+// Matches Bee conversations to a Series and gathers the first batch of
+// insights Bee generated after each session.
 import { listConversations, listInsights, type BeeConversation, type BeeInsight } from "./bee/cli.js";
 import type { Series } from "./series.js";
 
@@ -35,29 +35,53 @@ export function formatLocal(ms: number, timeZone: string): string {
   }).format(ms);
 }
 
-// Sessions newest first. If several conversations match on one day, the
-// longest one wins.
-export function matchSessions(conversations: BeeConversation[], series: Series): BeeConversation[] {
-  const start = toMinutes(series.windowStart);
-  const end = toMinutes(series.windowEnd);
-  const byDay = new Map<string, BeeConversation>();
-  for (const c of conversations) {
-    const { weekday, minutes } = localParts(c.start_time, series.timezone);
-    const duration = (c.end_time - c.start_time) / 60_000;
-    if (weekday !== series.weekday || minutes < start || minutes > end) continue;
-    if (duration < series.minDurationMinutes) continue;
-    const day = new Date(c.start_time).toLocaleDateString("en-CA", { timeZone: series.timezone });
-    const prev = byDay.get(day);
-    if (!prev || duration > (prev.end_time - prev.start_time) / 60_000) byDay.set(day, c);
-  }
-  return [...byDay.values()].sort((a, b) => b.start_time - a.start_time);
+// Bee can split one session into several conversations, so a session is
+// every conversation that overlaps the series window by at least
+// minOverlapMinutes, merged in order. Sessions newest first.
+export interface Session {
+  parts: BeeConversation[];
+  start: number;
+  end: number;
 }
 
-export function insightsAfter(session: BeeConversation, insights: BeeInsight[], hours: number): BeeInsight[] {
-  const until = session.end_time + hours * HOUR;
-  return insights
-    .filter((i) => i.generated_at > session.end_time && i.generated_at <= until)
+export function matchSessions(conversations: BeeConversation[], series: Series): Session[] {
+  const windowStart = toMinutes(series.windowStart);
+  const windowEnd = toMinutes(series.windowEnd);
+  const byDay = new Map<string, { parts: BeeConversation[]; overlap: number }>();
+  for (const c of conversations) {
+    const { weekday, minutes } = localParts(c.start_time, series.timezone);
+    if (weekday !== series.weekday) continue;
+    const endMinutes = minutes + (c.end_time - c.start_time) / 60_000;
+    const overlap = Math.min(endMinutes, windowEnd) - Math.max(minutes, windowStart);
+    if (overlap < series.minOverlapMinutes) continue;
+    const day = new Date(c.start_time).toLocaleDateString("en-CA", { timeZone: series.timezone });
+    const entry = byDay.get(day) ?? { parts: [], overlap: 0 };
+    entry.parts.push(c);
+    entry.overlap += overlap;
+    byDay.set(day, entry);
+  }
+  return [...byDay.values()]
+    .filter((d) => d.overlap >= series.minDurationMinutes)
+    .map(({ parts }) => {
+      parts.sort((a, b) => a.start_time - b.start_time);
+      return { parts, start: parts[0].start_time, end: Math.max(...parts.map((p) => p.end_time)) };
+    })
+    .sort((a, b) => b.start - a.start);
+}
+
+// Bee writes insights in a nightly batch over a rolling window of days, so
+// later batches mostly restate earlier ones. Keep the first batch after the
+// session, if it arrives within `hours`.
+const BATCH_GAP = 30 * 60_000;
+
+export function insightsAfter(session: Session, insights: BeeInsight[], hours: number): BeeInsight[] {
+  const until = session.end + hours * HOUR;
+  const after = insights
+    .filter((i) => i.generated_at > session.end && i.generated_at <= until)
     .sort((a, b) => a.generated_at - b.generated_at);
+  if (!after.length) return [];
+  const first = after[0].generated_at;
+  return after.filter((i) => i.generated_at - first < BATCH_GAP);
 }
 
 export interface LastSession {
@@ -65,6 +89,7 @@ export interface LastSession {
   startedAt: string;
   startedAtLocal: string;
   durationMinutes: number;
+  parts: number;
   shortSummary: string;
   summary: string;
   insights: { title: string; description: string; generatedAt: string }[];
@@ -88,11 +113,12 @@ export function getLastSession(series: Series, { conversations, insights }: Snap
   if (!session) return null;
   return {
     series: series.name,
-    startedAt: new Date(session.start_time).toISOString(),
-    startedAtLocal: formatLocal(session.start_time, series.timezone),
-    durationMinutes: Math.round((session.end_time - session.start_time) / 60_000),
-    shortSummary: session.short_summary,
-    summary: session.summary,
+    startedAt: new Date(session.start).toISOString(),
+    startedAtLocal: formatLocal(session.start, series.timezone),
+    durationMinutes: Math.round((session.end - session.start) / 60_000),
+    parts: session.parts.length,
+    shortSummary: session.parts.map((p) => p.short_summary).join(" / "),
+    summary: session.parts.map((p) => p.summary).join("\n\n---\n\n"),
     insights: insightsAfter(session, insights, series.insightWindowHours).map((i) => ({
       title: i.title,
       description: i.description,

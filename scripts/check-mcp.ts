@@ -36,10 +36,10 @@ if (result.isError || !first?.text.startsWith("{")) {
   console.log(`get_last_session (${ms}ms):`);
   console.log(`  series:        ${s.series}`);
   console.log(`  started:       ${s.startedAtLocal}`);
-  console.log(`  duration:      ${s.durationMinutes} min`);
+  console.log(`  duration:      ${s.durationMinutes} min in ${s.parts} part(s)`);
   console.log(`  short summary: ${s.shortSummary.length} chars`);
   console.log(`  summary:       ${s.summary.length} chars`);
-  console.log(`  insights:      ${s.insights.length} in the ${s.insights.length ? "days" : "hours"} after`);
+  console.log(`  insights:      ${s.insights.length} in the first batch after`);
   for (const i of s.insights) {
     console.log(`    ${i.generatedAt}  title ${i.title.length} chars, description ${i.description.length} chars`);
   }
