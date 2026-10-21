@@ -36,3 +36,5 @@ yarn-error.log*
 
 # Personal series schedules
 *.local.json
+# Personal notes (schedules, tutorials with your own times)
+*.local.md
