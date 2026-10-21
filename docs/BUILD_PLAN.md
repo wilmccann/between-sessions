@@ -83,9 +83,9 @@ CDK app in `infra/` (TypeScript, same package; add `aws-cdk-lib`, `constructs`, 
 
 ## Phase 6: Docs (about 30 min)
 
-- [ ] README: architecture diagram (Mermaid: Bee → CLI in the collector Lambda → DynamoDB → MCP Lambda → API Gateway → assistants), "How it uses Bee data" (what's stored, what isn't), AWS setup steps (the secret script, deploy, connect Claude Code to the remote MCP), cost notes, and the local quickstart.
-- [ ] Friction log: add an entry for anything Bee-related that slowed you down tonight (format in `docs/FRICTION_LOG.md`; it's public, so keep it free of personal data).
-- [ ] Commit.
+- [x] README: architecture diagram (Mermaid: Bee → CLI in the collector Lambda → DynamoDB → MCP Lambda → API Gateway → assistants), "How it uses Bee data" (what's stored, what isn't), AWS setup steps (the secret script, deploy, connect Claude Code to the remote MCP), cost notes, and the local quickstart.
+- [x] Friction log: add an entry for anything Bee-related that slowed you down tonight (format in `docs/FRICTION_LOG.md`; it's public, so keep it free of personal data). _(entry 17: CLI package size and no headless/Linux docs)_
+- [x] Commit.
 
 ## Stretch (only if everything above is done)
 
