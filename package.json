@@ -13,6 +13,7 @@
     "mcp": "tsx src/local/mcp-http.ts",
     "check": "tsx scripts/check-mcp.ts",
     "show": "tsx scripts/check-mcp.ts --full",
+    "check:remote": "tsx scripts/check-remote.ts",
     "seed": "tsx scripts/seed-series.ts",
     "cdk": "cdk",
     "typecheck": "tsc --noEmit",
