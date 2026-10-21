@@ -94,6 +94,36 @@ export function createMcpServer(store: SessionStore): McpServer {
   );
 
   server.registerTool(
+    "list_sessions",
+    {
+      title: "Recent sessions",
+      description:
+        "List recent sessions in a series, newest first, with the date, how long each ran and how many versions Bee's summary went through. No summaries; use get_last_session for those.",
+      inputSchema: {
+        series: seriesArg,
+        limit: z.number().int().min(1).max(20).default(5).describe("How many sessions, 1 to 20. Defaults to 5."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ series: wanted, limit }) => {
+      const { series, failure } = await withSeries(wanted);
+      if (!series) return failure;
+      const sessions = await store.listSessions(series.id, limit);
+      if (!sessions.length) return text(`There's no ${series.name} session recorded yet.`);
+      return json({
+        series: series.name,
+        sessions: sessions.map((v) => ({
+          startedAt: v.start,
+          startedAtLocal: formatLocal(Date.parse(v.start), series.timezone),
+          durationMinutes: minutes(v.start, v.end),
+          parts: v.parts.length,
+          versions: v.versions,
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
     "add_agenda_item",
     {
       title: "Add agenda item",

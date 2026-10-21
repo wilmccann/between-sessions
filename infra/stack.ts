@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import { HttpApi, HttpMethod, HttpStage } from "aws-cdk-lib/aws-apigatewayv2";
+import { TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { AttributeType, BillingMode, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
@@ -112,6 +113,17 @@ export class BetweenSessionsStack extends Stack {
         ]),
       }),
     );
+
+    // No notifications wired up; it shows in the CloudWatch console.
+    collector
+      .metricErrors({ period: Duration.hours(1) })
+      .createAlarm(this, "CollectorErrors", {
+        alarmName: `${PREFIX}-collector-errors`,
+        alarmDescription: "The Bee collector failed at least twice in an hour",
+        threshold: 2,
+        evaluationPeriods: 1,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
 
     new Schedule(this, "CollectorSchedule", {
       scheduleName: `${PREFIX}-collector`,

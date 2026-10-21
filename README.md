@@ -42,6 +42,7 @@ flowchart LR
 | Tool | What it does |
 |---|---|
 | `get_last_session {series?}` | The latest session: date, duration, parts, Bee's summary, the insights after it, version count and when it was collected |
+| `list_sessions {series?, limit?}` | Recent sessions, newest first: dates, durations, part and version counts, no summaries |
 | `add_agenda_item {series?, text}` | Something to bring up next time; it stays open until the next session starts |
 | `list_agenda {series?}` | Open agenda items, oldest first |
 | `save_takeaway {series?, text}` | Your own takeaway, filed under the latest session |

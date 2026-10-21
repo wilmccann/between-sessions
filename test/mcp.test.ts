@@ -50,6 +50,7 @@ describe("MCP tools", () => {
       "get_last_session",
       "get_prep_brief",
       "list_agenda",
+      "list_sessions",
       "save_takeaway",
     ]);
     for (const t of tools) assert.ok((t.description ?? "").length > 40, t.name);
@@ -69,6 +70,19 @@ describe("MCP tools", () => {
     assert.equal(s.durationMinutes, 60);
     assert.equal(s.versions, 1);
     assert.equal(s.collectedAt, "2020-01-07T03:00:00.000Z");
+  });
+
+  it("lists sessions newest first without summaries", async () => {
+    await store.putSessionVersion(series.id, PAST, "2020-01-07T03:00:00.000Z");
+    await store.putSessionVersion(series.id, { ...PAST, parts: [{ ...PAST.parts[0], summary: "Rewritten." }] }, "2020-01-08T03:00:00.000Z");
+    await store.putSessionVersion(series.id, FUTURE);
+    const res = await call("list_sessions", { limit: 5 });
+    assert.ok(!res.text.includes("Synthetic summary") && !res.text.includes("Rewritten"));
+    const { sessions } = JSON.parse(res.text) as { sessions: { startedAt: string; versions: number }[] };
+    assert.deepEqual(sessions.map((s) => [s.startedAt, s.versions]), [
+      [FUTURE.start, 1],
+      [PAST.start, 2],
+    ]);
   });
 
   it("keeps agenda items open until the next session", async () => {
