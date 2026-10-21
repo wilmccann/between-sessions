@@ -35,9 +35,21 @@ TypeScript on AWS, deployed with AWS CDK:
 
 This handles sensitive personal data. Everything runs in your own AWS account. Tokens live only in Secrets Manager or local environment files and are never committed. Bee exports (`bee-sync/`) and local snapshots are git-ignored.
 
-## Getting started
+## Getting started (local)
 
-Setup instructions will land here as the pieces are built.
+Requires Node 22.18+, Yarn via Corepack, and the [Bee CLI](https://www.npmjs.com/package/@beeai/cli) logged in with `bee login`.
+
+```bash
+corepack yarn install
+cp .env.example .env               # set MCP_TOKEN to a long random value
+cp series.example.json series.local.json   # describe your own recurring session
+corepack yarn collect              # snapshot recent Bee conversations and insights (git-ignored)
+corepack yarn mcp                  # MCP server on http://127.0.0.1:8788/mcp
+corepack yarn check                # call get_last_session; prints shape only
+corepack yarn show                 # same call, full content
+```
+
+A *series* matches sessions by weekday and a local start-time window, for example "Tuesdays between 17:00 and 19:00 in America/Los_Angeles". The longest matching conversation of the day becomes the session, and the insights Bee generates in the following `insightWindowHours` are attached to it.
 
 ## License
 

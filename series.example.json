@@ -1,0 +1,12 @@
+[
+  {
+    "id": "weekly-coaching",
+    "name": "Weekly coaching",
+    "timezone": "America/Los_Angeles",
+    "weekday": 2,
+    "windowStart": "17:00",
+    "windowEnd": "19:00",
+    "minDurationMinutes": 30,
+    "insightWindowHours": 72
+  }
+]

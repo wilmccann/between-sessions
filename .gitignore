@@ -33,3 +33,6 @@ yarn-error.log*
 .yarn/*
 !.yarn/releases
 !.yarn/plugins
+
+# Personal series schedules
+*.local.json
