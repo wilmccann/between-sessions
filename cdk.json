@@ -1,0 +1,6 @@
+{
+  "app": "tsx infra/app.ts",
+  "output": "cdk.out",
+  "watch": { "include": ["infra/**", "src/**"] },
+  "context": {}
+}

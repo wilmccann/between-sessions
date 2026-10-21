@@ -31,12 +31,11 @@ interface Page {
   [key: string]: unknown;
 }
 
-const BEE_BIN = process.env.BEE_BIN ?? "bee";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 
 export async function bee<T = unknown>(args: string[]): Promise<T> {
-  const { stdout } = await run(BEE_BIN, [...args, "--json"], {
+  const { stdout } = await run(process.env.BEE_BIN ?? "bee", [...args, "--json"], {
     timeout: 60_000,
     maxBuffer: 64 * 1024 * 1024,
   });
