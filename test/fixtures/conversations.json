@@ -1,0 +1,71 @@
+{
+  "conversations": [
+    {
+      "id": 1004,
+      "start_time": 1792543920000,
+      "end_time": 1792546200000,
+      "summary": "A short chat in the hallway about what to buy for dinner.",
+      "short_summary": "Grocery list",
+      "state": "COMPLETED",
+      "created_at": 1792546260000,
+      "updated_at": 1792549800000,
+      "utterances_count": 120
+    },
+    {
+      "id": 1003,
+      "start_time": 1792542120000,
+      "end_time": 1792544280000,
+      "summary": "The coach and the user listed three tasks to hand to the team lead and agreed to check in next week on how it went.",
+      "short_summary": "Delegation plan",
+      "state": "COMPLETED",
+      "created_at": 1792544340000,
+      "updated_at": 1792547880000,
+      "utterances_count": 120
+    },
+    {
+      "id": 1002,
+      "start_time": 1792540800000,
+      "end_time": 1792542000000,
+      "summary": "The user described the planning for a team offsite and feeling stretched by the budget review.",
+      "short_summary": "Offsite budget",
+      "state": "COMPLETED",
+      "created_at": 1792542060000,
+      "updated_at": 1792545600000,
+      "utterances_count": 120
+    },
+    {
+      "id": 1005,
+      "start_time": 1792022400000,
+      "end_time": 1792025400000,
+      "summary": "A book club discussion about a novel set on a lighthouse.",
+      "short_summary": "Book club",
+      "state": "COMPLETED",
+      "created_at": 1792025460000,
+      "updated_at": 1792029000000,
+      "utterances_count": 120
+    },
+    {
+      "id": 1001,
+      "start_time": 1791936120000,
+      "end_time": 1791939300000,
+      "summary": "The user practised turning down a meeting request and the coach suggested a short script for it.",
+      "short_summary": "Saying no",
+      "state": "COMPLETED",
+      "created_at": 1791939360000,
+      "updated_at": 1791942900000,
+      "utterances_count": 120
+    },
+    {
+      "id": 1006,
+      "start_time": 1791331200000,
+      "end_time": 1791332100000,
+      "summary": "A brief call to move the session to another day.",
+      "short_summary": "Quick reschedule",
+      "state": "COMPLETED",
+      "created_at": 1791332160000,
+      "updated_at": 1791335700000,
+      "utterances_count": 120
+    }
+  ],
+  "next_cursor": null
+}

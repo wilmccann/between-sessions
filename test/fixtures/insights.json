@@ -1,0 +1,53 @@
+{
+  "insights": [
+    {
+      "id": 2006,
+      "title": "Workload theme continues",
+      "description": "The offsite and the budget review keep coming up together.",
+      "suggested_actions": [],
+      "generated_at": 1792663260000,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": 2005,
+      "title": "Delegation follow-up",
+      "description": "You planned to hand three tasks to your team lead.",
+      "suggested_actions": [],
+      "generated_at": 1792663200000,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": 2004,
+      "title": "Energy dips late in the day",
+      "description": "Afternoon conversations sound more tired than morning ones.",
+      "suggested_actions": [],
+      "generated_at": 1792576920000,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": 2003,
+      "title": "Delegation as relief",
+      "description": "Handing off tasks came up as a way to free time for the offsite.",
+      "suggested_actions": [],
+      "generated_at": 1792576860000,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": 2002,
+      "title": "Budget stress",
+      "description": "The budget review was described as the most stressful item this week.",
+      "suggested_actions": [],
+      "generated_at": 1792576800000,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": 2001,
+      "title": "Practising boundaries",
+      "description": "You rehearsed a short script for declining meetings.",
+      "suggested_actions": [],
+      "generated_at": 1791972000000,
+      "timezone": "America/Los_Angeles"
+    }
+  ],
+  "next_cursor": null
+}

@@ -14,17 +14,17 @@ This plan is written for an unattended Claude Code session. It works through the
 
 ## Phase 0: Setup (about 10 min)
 
-- [ ] `corepack yarn install` in the worktree. `corepack yarn typecheck` passes.
-- [ ] Note what's missing in the worktree: git-ignored files (`.env`, `series.local.json`, `snapshots/`) live only in the main checkout at `<main checkout>`. You may read the main checkout's `series.local.json` for the seed step (Phase 3), but never copy it into the worktree's tracked files or print its contents.
+- [x] `corepack yarn install` in the worktree. `corepack yarn typecheck` passes.
+- [x] Note what's missing in the worktree: git-ignored files (`.env`, `series.local.json`, `snapshots/`) live only in the main checkout at `<main checkout>`. You may read the main checkout's `series.local.json` for the seed step (Phase 3), but never copy it into the worktree's tracked files or print its contents. _(main checkout has .env, series.local.json, snapshots/; the worktree has none)_
 - [ ] Check AWS: `aws sts get-caller-identity --profile agent-toolkit` (print the ARN with the account id masked). The user may still be signing in when you start: if it fails, do Phases 1 to 3 first and check again before Phase 4. If `agent-toolkit` (IAM user `claude-agent`) is denied CloudFormation, Lambda, DynamoDB, Secrets Manager or Bedrock calls the stack needs, the user approved falling back to `--profile aws-admin --region us-east-1`, but only if its credentials already work. Never run `aws login` yourself, and never use the `fts-website` profile. Check the Bee secret exists with `aws secretsmanager describe-secret --secret-id between-sessions/bee-cli-config` (metadata only). If it doesn't exist, skip the real-data parts of Phase 4 and say so in the report.
 - [ ] Check Bedrock models available to the account (`aws bedrock list-foundation-models`, `aws bedrock list-inference-profiles`). Default model: an Anthropic Claude Sonnet inference profile if listed and invokable, else Amazon Nova Lite (latest). Record the choice.
 
 ## Phase 1: Tests for what exists (about 30 min)
 
-- [ ] Add a test runner: `node --import tsx --test` via a `test` script. No new framework.
-- [ ] Synthetic fixtures in `test/fixtures/` (made-up conversations and insights in the Bee JSON shapes from `src/bee/cli.ts`).
-- [ ] Tests for `matchSessions` (one part, split parts merged, conversations under `minOverlapMinutes` dropped, wrong weekday, timezone/DST edge) and `insightsAfter` (first batch only, none within window).
-- [ ] Commit.
+- [x] Add a test runner: `node --import tsx --test` via a `test` script. No new framework.
+- [x] Synthetic fixtures in `test/fixtures/` (made-up conversations and insights in the Bee JSON shapes from `src/bee/cli.ts`).
+- [x] Tests for `matchSessions` (one part, split parts merged, conversations under `minOverlapMinutes` dropped, wrong weekday, timezone/DST edge) and `insightsAfter` (first batch only, none within window). _(plus a paging test for collectSnapshot against a fake bee CLI)_
+- [x] Commit.
 
 ## Phase 2: Storage layer (about 45 min)
 
