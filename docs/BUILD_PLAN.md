@@ -73,12 +73,13 @@ CDK app in `infra/` (TypeScript, same package; add `aws-cdk-lib`, `constructs`, 
 
 ## Phase 5: Bedrock notes, synthetic only (about 1 h)
 
-- [ ] `src/notes/bedrock.ts`: Converse API. Inputs: one session (all parts' summaries), its first insight batch, takeaways and agenda. Outputs, as JSON:
+- [x] `src/notes/bedrock.ts`: Converse API. _(structured output through a forced `save_notes` tool, with a JSON-in-text fallback; `maxTokens` 1200)_ Inputs: one session (all parts' summaries), its first insight batch, takeaways and agenda. Outputs, as JSON:
   - a **session note** (under 200 words, second person, neutral, no diagnosis)
   - a **prep brief** for next session (3 to 5 bullet points to bring up, plus open agenda items)
   - the **relevant insight ids** (insights about the session vs. about the rest of the week)
-- [ ] Called by the collector only when a session version is new and `BEDROCK_NOTES_ENABLED=true`. Results stored as `BRIEF#...`. Leave it **disabled** in the deployed stack.
-- [ ] `scripts/try-notes.ts`: runs the prompt on the synthetic fixture and prints the result (synthetic content may be printed). Run it once against Bedrock. Commit with a sample output in `docs/sample-note.md` (synthetic).
+- [x] Called by the collector only when a session version is new and `BEDROCK_NOTES_ENABLED=true`. Results stored as `BRIEF#...`. Leave it **disabled** in the deployed stack. _(`src/notes/briefs.ts`, latest session per series only; redeployed with `BEDROCK_NOTES_ENABLED=false`, confirmed on the function. Enable with `cdk deploy -c notes=true [-c bedrockModelId=...]`)_
+- [x] `scripts/try-notes.ts`: runs the prompt on the synthetic fixture and prints the result (synthetic content may be printed). (`yarn try-notes [--model <id>] [--write docs/sample-note.md]`)
+- ⚠️ Running it against Bedrock failed on account access, not code: Sonnet 5.5 returned `AccessDeniedException` ("not available for this account"), and Nova Lite returned `ThrottlingException` ("Too many tokens per day"). So there's no `docs/sample-note.md` yet. The prompt and parsing are covered by unit tests with a fake Converse.
 
 ## Phase 6: Docs (about 30 min)
 

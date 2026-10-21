@@ -20,12 +20,20 @@ const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const PREFIX = "between-sessions";
 const BEE_SECRET = `${PREFIX}/bee-cli-config`;
 const MCP_TOKEN_SECRET = `${PREFIX}/mcp-token`;
-// Bedrock notes are off tonight; these are the models the collector may call.
-const BEDROCK_MODEL_ID = "us.anthropic.claude-sonnet-5-5";
+// Bedrock notes are off unless deployed with `-c notes=true`. The collector
+// may call either model; pick one with `-c bedrockModelId=<profile id>`.
+const BEDROCK_MODELS = {
+  "us.anthropic.claude-sonnet-5-5": "anthropic.claude-sonnet-5-5*",
+  "us.amazon.nova-lite-v1:0": "amazon.nova-lite-v1:0",
+};
+const DEFAULT_MODEL_ID = "us.anthropic.claude-sonnet-5-5";
 
 export class BetweenSessionsStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+    const notesEnabled = String(this.node.tryGetContext("notes") ?? "false") === "true";
+    const modelId = String(this.node.tryGetContext("bedrockModelId") ?? DEFAULT_MODEL_ID);
+    if (!(modelId in BEDROCK_MODELS)) throw new Error(`bedrockModelId must be one of ${Object.keys(BEDROCK_MODELS).join(", ")}`);
 
     // Personal data: removed with the stack.
     const table = new Table(this, "Table", {
@@ -77,8 +85,8 @@ export class BetweenSessionsStack extends Stack {
         BEE_CONFIG_DIR: "/tmp/bee-config",
         BEE_SECRET_ID: BEE_SECRET,
         HOME: "/tmp",
-        BEDROCK_NOTES_ENABLED: "false",
-        BEDROCK_MODEL_ID,
+        BEDROCK_NOTES_ENABLED: String(notesEnabled),
+        BEDROCK_MODEL_ID: modelId,
       },
       bundling: {
         commandHooks: {
@@ -98,10 +106,10 @@ export class BetweenSessionsStack extends Stack {
     collector.addToRolePolicy(
       new PolicyStatement({
         actions: ["bedrock:InvokeModel"],
-        resources: [
-          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${BEDROCK_MODEL_ID}`,
-          "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-5-5*",
-        ],
+        resources: Object.entries(BEDROCK_MODELS).flatMap(([profile, model]) => [
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${profile}`,
+          `arn:aws:bedrock:*::foundation-model/${model}`,
+        ]),
       }),
     );
 

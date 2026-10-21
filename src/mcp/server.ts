@@ -5,7 +5,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Series } from "../series.js";
 import { formatLocal } from "../sessions.js";
-import type { AgendaItem, SessionStore, SessionVersion } from "../store/types.js";
+import { openAgenda } from "../store/agenda.js";
+import type { SessionStore, SessionVersion } from "../store/types.js";
 
 const minutes = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 60_000);
 
@@ -51,12 +52,6 @@ async function resolveSeries(store: SessionStore, wanted?: string): Promise<Seri
   if (byId) return byId;
   const all = await store.listSeries();
   return all.find((s) => s.name.toLowerCase() === wanted.toLowerCase()) ?? null;
-}
-
-// Agenda items are for the next session, so an item is open until a session
-// starts after it was added.
-export function openAgenda(items: AgendaItem[], latest: SessionVersion | null): AgendaItem[] {
-  return latest ? items.filter((i) => i.createdAt > latest.start) : items;
 }
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });

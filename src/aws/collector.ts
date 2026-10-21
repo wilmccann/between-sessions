@@ -5,6 +5,7 @@
 import { access, chmod, copyFile, constants } from "node:fs/promises";
 import { GetSecretValueCommand, PutSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { recordSnapshot } from "../collector.js";
+import { writeBriefs } from "../notes/briefs.js";
 import { collectSnapshot } from "../sessions.js";
 import { dynamoStore } from "../store/dynamo-store.js";
 import { changedPaths, readConfigDir, writeConfigDir, type ConfigFiles } from "./bee-config.js";
@@ -22,6 +23,8 @@ export interface CollectorResult {
   matched: number;
   written: number;
   writtenSessions: { seriesId: string; start: string; versions: number }[];
+  briefs: number;
+  briefsFailed: number;
   configRefreshed: boolean;
   durationMs: number;
 }
@@ -69,6 +72,10 @@ export async function handler(): Promise<CollectorResult> {
 
   const series = await store.listSeries();
   const run = await recordSnapshot(store, series, snapshot);
+  const notes =
+    process.env.BEDROCK_NOTES_ENABLED === "true" && run.written.length
+      ? await writeBriefs(store, run.written)
+      : { briefs: 0, failed: 0 };
   const result: CollectorResult = {
     conversations: snapshot.conversations.length,
     insights: snapshot.insights.length,
@@ -76,6 +83,8 @@ export async function handler(): Promise<CollectorResult> {
     matched: run.matched,
     written: run.written.length,
     writtenSessions: run.written.map((v) => ({ seriesId: v.seriesId, start: v.start, versions: v.versions })),
+    briefs: notes.briefs,
+    briefsFailed: notes.failed,
     configRefreshed: refreshed,
     durationMs: Date.now() - started,
   };
