@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Least-privilege role for the coding agent that builds and tests the
+  Between Sessions stack. Assumed from an admin sign-in, so it holds no
+  long-term keys. It deploys only through the CDK bootstrap roles and can
+  never read secret values.
+
+# Deploy (as an admin):
+#   aws cloudformation deploy --stack-name BeeAgentAccess \
+#     --template-file infra/bee-agent-access.yaml --capabilities CAPABILITY_NAMED_IAM \
+#     --profile aws-admin --region us-east-1
+# Then point a CLI profile at it:
+#   aws configure set role_arn arn:aws:iam::<account>:role/bee-agent --profile bee-agent
+#   aws configure set source_profile aws-admin --profile bee-agent
+#   aws configure set region us-east-1 --profile bee-agent
+
+Parameters:
+  TrustedUserName:
+    Type: String
+    Default: admin
+    Description: IAM user allowed to assume the role
+  AppPrefix:
+    Type: String
+    Default: between-sessions
+    Description: Name prefix of the app's table, functions, log groups and secrets
+  CdkQualifier:
+    Type: String
+    Default: hnb659fds
+    Description: CDK bootstrap qualifier
+
+Resources:
+  BeeAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: bee-agent
+      Description: Coding agent for Between Sessions, deploys via CDK roles only
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:user/${TrustedUserName}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: bee-agent
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: DeployThroughCdkBootstrapRoles
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-${CdkQualifier}-*-${AWS::AccountId}-${AWS::Region}
+              - Sid: ReadCdkBootstrapVersion
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cdk-bootstrap/${CdkQualifier}/version
+              - Sid: ReadStacks
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeEvents
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStackResources
+                  - cloudformation:GetTemplate
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/BetweenSessions/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/CDKToolkit/*
+              - Sid: InvokeAndInspectAppFunctions
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppPrefix}-*
+              - Sid: ReadAppLogs
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                  - logs:StartQuery
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AppPrefix}-*
+              - Sid: ReadLogQueryResults
+                Effect: Allow
+                Action:
+                  - logs:GetQueryResults
+                  - logs:StopQuery
+                Resource: "*"
+              - Sid: SeedAndCountAppTable
+                Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppPrefix}
+              - Sid: SecretMetadataOnly
+                Effect: Allow
+                Action: secretsmanager:DescribeSecret
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppPrefix}/*
+              - Sid: NeverReadSecretValues
+                Effect: Deny
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:BatchGetSecretValue
+                Resource: "*"
+              - Sid: ListBedrockModels
+                Effect: Allow
+                Action:
+                  - bedrock:ListFoundationModels
+                  - bedrock:ListInferenceProfiles
+                  - bedrock:GetInferenceProfile
+                Resource: "*"
+              - Sid: InvokeChosenBedrockModels
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.anthropic.claude-sonnet-5-5
+                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/anthropic.claude-sonnet-5-5*
+                  - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/amazon.nova-lite-v1:0
+      Tags:
+        - Key: project
+          Value: between-sessions
+
+Outputs:
+  RoleArn:
+    Description: Role for the bee-agent CLI profile
+    Value: !GetAtt BeeAgentRole.Arn

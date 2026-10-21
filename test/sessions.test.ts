@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getLastSession, insightsAfter, matchSessions } from "../src/sessions.js";
+import { insightsAfter, matchSessions, sessionInput } from "../src/sessions.js";
 import { at, conversation, conversations, insight, insights, series } from "./fixtures/index.js";
 
 const ids = (items: { id: number }[]) => items.map((i) => i.id);
@@ -64,19 +64,14 @@ describe("insightsAfter", () => {
   });
 });
 
-describe("getLastSession", () => {
-  it("summarises the latest session", () => {
-    const collectedAt = "2026-10-22T12:00:00.000Z";
-    const last = getLastSession(series, { collectedAt, conversations, insights });
-    assert.ok(last);
-    assert.equal(last.startedAt, "2026-10-21T00:00:00.000Z");
-    assert.equal(last.durationMinutes, 58);
-    assert.equal(last.parts, 2);
-    assert.equal(last.shortSummary, "Offsite budget / Delegation plan");
-    assert.equal(last.insights.length, 3);
-  });
-
-  it("returns null with no matching session", () => {
-    assert.equal(getLastSession(series, { collectedAt: "", conversations: [], insights }), null);
+describe("sessionInput", () => {
+  it("keeps the parts' summaries and the first insight batch", () => {
+    const [latest] = matchSessions(conversations, series);
+    const input = sessionInput(latest, insights, series);
+    assert.equal(input.start, "2026-10-21T00:00:00.000Z");
+    assert.equal(input.end, "2026-10-21T00:58:00.000Z");
+    assert.deepEqual(input.parts.map((p) => p.shortSummary), ["Offsite budget", "Delegation plan"]);
+    assert.deepEqual(input.insights.map((i) => i.id), [2002, 2003, 2004]);
+    assert.ok(!("utterances_count" in input.parts[0]));
   });
 });

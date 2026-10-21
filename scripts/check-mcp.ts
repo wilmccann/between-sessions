@@ -3,7 +3,7 @@
 // so personal content stays off screen; pass --full to print everything.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { LastSession } from "../src/sessions.js";
+import type { SessionView } from "../src/mcp/server.js";
 
 try {
   process.loadEnvFile(".env");
@@ -32,18 +32,18 @@ if (result.isError || !first?.text.startsWith("{")) {
 } else if (full) {
   console.log(first.text);
 } else {
-  const s = JSON.parse(first.text) as LastSession & { collectedAt: string };
+  const s = JSON.parse(first.text) as SessionView;
   console.log(`get_last_session (${ms}ms):`);
   console.log(`  series:        ${s.series}`);
   console.log(`  started:       ${s.startedAtLocal}`);
-  console.log(`  duration:      ${s.durationMinutes} min in ${s.parts} part(s)`);
+  console.log(`  duration:      ${s.durationMinutes} min in ${s.parts.length} part(s)`);
   console.log(`  short summary: ${s.shortSummary.length} chars`);
   console.log(`  summary:       ${s.summary.length} chars`);
   console.log(`  insights:      ${s.insights.length} in the first batch after`);
   for (const i of s.insights) {
     console.log(`    ${i.generatedAt}  title ${i.title.length} chars, description ${i.description.length} chars`);
   }
-  console.log(`  source:        ${s.source}, collected ${s.collectedAt}`);
+  console.log(`  source:        ${s.source}, ${s.versions} version(s), latest collected ${s.collectedAt}`);
 }
 
 await client.close();

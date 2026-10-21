@@ -2,6 +2,7 @@
 // insights Bee generated after each session.
 import { listConversations, listInsights, type BeeConversation, type BeeInsight } from "./bee/cli.js";
 import type { Series } from "./series.js";
+import type { SessionInput } from "./store/types.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HOUR = 3_600_000;
@@ -84,18 +85,6 @@ export function insightsAfter(session: Session, insights: BeeInsight[], hours: n
   return after.filter((i) => i.generated_at - first < BATCH_GAP);
 }
 
-export interface LastSession {
-  series: string;
-  startedAt: string;
-  startedAtLocal: string;
-  durationMinutes: number;
-  parts: number;
-  shortSummary: string;
-  summary: string;
-  insights: { title: string; description: string; generatedAt: string }[];
-  source: "bee-cli";
-}
-
 export interface Snapshot {
   collectedAt: string;
   conversations: BeeConversation[];
@@ -108,22 +97,24 @@ export async function collectSnapshot(now = Date.now()): Promise<Snapshot> {
   return { collectedAt: new Date(now).toISOString(), conversations, insights };
 }
 
-export function getLastSession(series: Series, { conversations, insights }: Snapshot): LastSession | null {
-  const [session] = matchSessions(conversations, series);
-  if (!session) return null;
+// What the store keeps for one session: the parts' summaries and the first
+// insight batch after it.
+export function sessionInput(session: Session, insights: BeeInsight[], series: Series): SessionInput {
   return {
-    series: series.name,
-    startedAt: new Date(session.start).toISOString(),
-    startedAtLocal: formatLocal(session.start, series.timezone),
-    durationMinutes: Math.round((session.end - session.start) / 60_000),
-    parts: session.parts.length,
-    shortSummary: session.parts.map((p) => p.short_summary).join(" / "),
-    summary: session.parts.map((p) => p.summary).join("\n\n---\n\n"),
+    start: new Date(session.start).toISOString(),
+    end: new Date(session.end).toISOString(),
+    parts: session.parts.map((p) => ({
+      id: p.id,
+      start: new Date(p.start_time).toISOString(),
+      end: new Date(p.end_time).toISOString(),
+      shortSummary: p.short_summary,
+      summary: p.summary,
+    })),
     insights: insightsAfter(session, insights, series.insightWindowHours).map((i) => ({
+      id: i.id,
       title: i.title,
       description: i.description,
       generatedAt: new Date(i.generated_at).toISOString(),
     })),
-    source: "bee-cli",
   };
 }

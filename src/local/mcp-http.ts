@@ -4,6 +4,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpServer } from "../mcp/server.js";
+import { fileStore } from "../store/file-store.js";
 
 try {
   process.loadEnvFile(".env");
@@ -16,6 +17,7 @@ if (!token || token.length < 32) {
   console.error("MCP_TOKEN is missing or shorter than 32 characters. See .env.example.");
   process.exit(1);
 }
+const store = fileStore();
 const port = Number(process.env.MCP_PORT ?? 8788);
 const digest = (s: string) => createHash("sha256").update(s).digest();
 const expected = digest(token);
@@ -53,7 +55,7 @@ const http = createServer(async (req, res) => {
 
   try {
     const body = await readJson(req);
-    const server = createMcpServer();
+    const server = createMcpServer(store);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
