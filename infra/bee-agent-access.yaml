@@ -101,11 +101,30 @@ Resources:
                 Effect: Allow
                 Action: secretsmanager:DescribeSecret
                 Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppPrefix}/*
-              - Sid: NeverReadSecretValues
+              # The one exception: asm-exec may resolve the remote MCP token
+              # into a child process. It reads it through the AWS MCP Server,
+              # so a direct `aws secretsmanager get-secret-value` stays denied.
+              - Sid: ResolveMcpTokenViaAwsMcpOnly
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppPrefix}/mcp-token-*
+                Condition:
+                  Bool:
+                    aws:ViaAWSMCPService: "true"
+              - Sid: NeverReadMcpTokenDirectly
                 Effect: Deny
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:BatchGetSecretValue
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppPrefix}/mcp-token-*
+                Condition:
+                  BoolIfExists:
+                    aws:ViaAWSMCPService: "false"
+              - Sid: NeverReadOtherSecretValues
+                Effect: Deny
+                Action: secretsmanager:GetSecretValue
+                NotResource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppPrefix}/mcp-token-*
+              - Sid: NeverBatchReadSecretValues
+                Effect: Deny
+                Action: secretsmanager:BatchGetSecretValue
                 Resource: "*"
               - Sid: ListBedrockModels
                 Effect: Allow
