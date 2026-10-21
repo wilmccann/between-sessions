@@ -48,7 +48,7 @@ Keep each tool's answer under 500 ms, reading precomputed data only.
 - [x] `get_prep_brief {series?}`: the precomputed brief if there is one; otherwise a plain assembled brief (last session's date, short summary, insight titles, open agenda items, takeaways), with no Bedrock call.
 - [x] Clear tool descriptions written for voice use (Alexa will read them). Tests. Commit. _(`test/mcp.test.ts`, in-memory MCP client)_
 - [x] `scripts/seed-series.ts --file <path> --store dynamo|file`: writes series config to the store (`yarn seed`).
-- ⚠️ Running it from the main checkout's `series.local.json` was blocked: the headless session's sandbox refuses reads outside the worktree. The user runs it (see Morning report).
+- [x] Run it from the main checkout's `series.local.json`. _(blocked overnight, since the headless session's sandbox refuses reads outside the worktree; run interactively on Oct 21)_
 
 ## Phase 4: AWS stack (about 2 h; includes the go/no-go)
 
@@ -65,8 +65,8 @@ CDK app in `infra/` (TypeScript, same package; add `aws-cdk-lib`, `constructs`, 
 - [x] Stack outputs: MCP URL, table name, collector function name, secret names (not values).
 - [x] `cdk synth` passes. Commit.
 - [x] `cdk bootstrap aws://<account>/us-east-1` if the `CDKToolkit` stack doesn't exist. Then `cdk deploy --require-approval never`. _(already bootstrapped; deployed in 72 s)_
-- ⚠️ Seed series config into DynamoDB: blocked like the local seed in Phase 3 (no reads outside the worktree). The user runs `corepack yarn seed --store dynamo --file <main checkout>/series.local.json`.
-- ⚠️ **Go/no-go: does the Bee CLI run in Lambda?** **Yes for the CLI**: one invoke read 107 conversations and 111 insights in 6.8 s (168 MB used), with 0 error lines in the logs. Matched sessions: 0, because no series is seeded yet, so the second half of the pass (at least one matched session) is still open until the seed runs.
+- [x] Seed series config into DynamoDB. _(blocked overnight, since the headless run couldn't read outside the worktree; run interactively on Oct 21: 1 series in DynamoDB and 1 in the file store)_
+- [x] **Go/no-go: does the Bee CLI run in Lambda?** **Passed.** Overnight, one invoke read 107 conversations and 111 insights in 6.8 s (168 MB used), with 0 error lines in the logs. After the seed on Oct 21, one invoke read 109 conversations and 120 insights in 3.0 s and matched and wrote 2 sessions.
   - **If it fails:** try up to three fixes (missing shared libraries, `HOME`/permissions, binary not executable, timeout, the file store not being picked up). Still failing: write `src/bee/rest.ts` as the fallback, calling `https://api.developer.bee.amazon.dev/v1/conversations` and the insights path with the bearer token read inside the Lambda from the config files. If the token's location in those files is unclear, log only the JSON key names (never values) to find it. Timebox the fallback to 1 hour, then mark ⚠️ and continue.
 - ⚠️ Remote MCP smoke test from the Mac: a script `scripts/check-remote.ts` that reads the MCP URL from stack outputs and the token **only via** `asm-exec` with `{{resolve:secretsmanager:between-sessions/mcp-token}}` substituted into an environment variable at runtime (never printed). Call `tools/list` and `get_last_session`, printing shape only. If `asm-exec` isn't installed, skip this, and write the exact command for the user to run in the morning. _(written as `yarn check:remote`; `asm-exec` isn't installed, so only the token-free half ran: no token and a wrong token both get 401, which also shows the Lambda loaded its token secret. The tool calls are left for the user.)_
 - [x] Commit.
@@ -115,19 +115,19 @@ _Filled in Oct 21, 2026, at the end of the overnight run on branch `claude/overn
 - ✅ **Phase 1, tests**: done earlier.
 - ✅ **Phase 2, storage**: done earlier; typecheck and tests reconfirmed at the start of this run.
 - ⚠️ **Phase 3, MCP tools**: all five tools, voice-friendly descriptions, tests and `yarn seed` are done. Seeding from `series.local.json` was blocked, because the sandbox refuses reads outside the worktree.
-- ⚠️ **Phase 4, AWS stack**: deployed and working. The Bee CLI runs in Lambda. The series seed is blocked (same reason), so "at least one matched session" is still unchecked. The remote tool calls need the token, and `asm-exec` isn't installed.
+- ⚠️ **Phase 4, AWS stack**: deployed and working, and the go/no-go passed after the Oct 21 seed (2 sessions matched). Still open: the remote tool calls need the token, and `asm-exec` isn't installed.
 - ⚠️ **Phase 5, Bedrock**: code, tests and the collector hook are done, deployed disabled. The one live run failed on account access: Sonnet 5.5 isn't enabled for the account, and Nova Lite hit its daily token quota. There's no `docs/sample-note.md`.
 - ✅ **Phase 6, docs**: README (Mermaid architecture, data use, AWS setup, Claude Code connection, cost) and friction log entry 17.
 - ✅ **Stretch**: `list_sessions` tool, collector error alarm, tidy (39 tests pass).
 
 ### Go/no-go: does the Bee CLI run in Lambda?
 
-**Yes**, by counts:
+**Passed**, by counts:
 
 - 2 manual invokes, each reading 107 conversations and 111 insights: 6.8 s cold, 2.4 s warm, 168 MB of 1024 MB used.
 - 0 error lines in the collector logs. The scheduled runs also succeed.
 - The file-store login from the secret worked as is; no token refresh has been needed yet (`configRefreshed: false`).
-- Matched sessions: 0, only because no series config is in the table yet. Seed it (below), then invoke once more; that closes the go/no-go.
+- Matched sessions: 0 overnight, only because no series config was in the table yet. After the seed on Oct 21, one invoke read 109 conversations and 120 insights in 3.0 s and matched and wrote 2 sessions (1 version each), with no error and no login refresh.
 - The REST fallback (`src/bee/rest.ts`) wasn't needed.
 
 ### Deployed (stack `BetweenSessions`, us-east-1)
@@ -156,7 +156,7 @@ _Filled in Oct 21, 2026, at the end of the overnight run on branch `claude/overn
 
 ### First commands to run (from this worktree)
 
-1. Seed the series and finish the go/no-go (the `bee-agent` profile can do both):
+1. _(Done Oct 21: seeded, and the go/no-go passed.)_ Seed the series and finish the go/no-go (the `bee-agent` profile can do both):
    ```bash
    corepack yarn seed --store dynamo --file <main checkout>/series.local.json
    corepack yarn seed --store file --file <main checkout>/series.local.json
