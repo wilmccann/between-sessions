@@ -152,7 +152,8 @@ export class BetweenSessionsStack extends Stack {
       httpApi: api,
       stageName: "$default",
       autoDeploy: true,
-      throttle: { rateLimit: 10, burstLimit: 20 },
+      // Caps the worst case at about $0.32 a day for the API and the MCP Lambda.
+      throttle: { rateLimit: 2, burstLimit: 5 },
     });
     api.addRoutes({
       path: "/mcp",
