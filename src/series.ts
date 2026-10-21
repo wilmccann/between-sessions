@@ -17,13 +17,17 @@ const SeriesSchema = z.object({
 
 export type Series = z.infer<typeof SeriesSchema>;
 
+export function parseSeries(raw: string): Series[] {
+  return z.array(SeriesSchema).parse(JSON.parse(raw));
+}
+
 // Your real schedule stays in a git-ignored file; the example is synthetic.
 export function loadSeries(): Series[] {
   const candidates = [process.env.SERIES_FILE, "series.local.json", "series.example.json"];
   for (const path of candidates) {
     if (!path) continue;
     try {
-      return z.array(SeriesSchema).parse(JSON.parse(readFileSync(path, "utf8")));
+      return parseSeries(readFileSync(path, "utf8"));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
     }

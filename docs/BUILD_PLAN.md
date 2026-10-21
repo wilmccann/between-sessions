@@ -41,13 +41,14 @@ The cloud must not hold every Bee conversation. Store only what the tools need: 
 
 Keep each tool's answer under 500 ms, reading precomputed data only.
 
-- [ ] `get_last_session` (exists; now from the store; include `parts`, `versions` count, and `collectedAt`).
-- [ ] `add_agenda_item {series?, text}`: something to bring up next session.
-- [ ] `list_agenda {series?}`: open agenda items.
-- [ ] `save_takeaway {series?, text}`: the user's own takeaway, attached to the latest session.
-- [ ] `get_prep_brief {series?}`: the precomputed brief if there is one; otherwise a plain assembled brief (last session's date, short summary, insight titles, open agenda items, takeaways), with no Bedrock call.
-- [ ] Clear tool descriptions written for voice use (Alexa will read them). Tests. Commit.
-- [ ] `scripts/seed-series.ts --file <path> --store dynamo|file`: writes series config to the store. Run it locally with the file store from the main checkout's `series.local.json`.
+- [x] `get_last_session` (exists; now from the store; include `parts`, `versions` count, and `collectedAt`).
+- [x] `add_agenda_item {series?, text}`: something to bring up next session.
+- [x] `list_agenda {series?}`: open agenda items. _("open" = added after the latest session started; no done flag)_
+- [x] `save_takeaway {series?, text}`: the user's own takeaway, attached to the latest session.
+- [x] `get_prep_brief {series?}`: the precomputed brief if there is one; otherwise a plain assembled brief (last session's date, short summary, insight titles, open agenda items, takeaways), with no Bedrock call.
+- [x] Clear tool descriptions written for voice use (Alexa will read them). Tests. Commit. _(`test/mcp.test.ts`, in-memory MCP client)_
+- [x] `scripts/seed-series.ts --file <path> --store dynamo|file`: writes series config to the store (`yarn seed`).
+- ⚠️ Running it from the main checkout's `series.local.json` was blocked: the headless session's sandbox refuses reads outside the worktree. The user runs it (see Morning report).
 
 ## Phase 4: AWS stack (about 2 h; includes the go/no-go)
 

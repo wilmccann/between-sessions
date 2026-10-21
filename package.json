@@ -13,6 +13,7 @@
     "mcp": "tsx src/local/mcp-http.ts",
     "check": "tsx scripts/check-mcp.ts",
     "show": "tsx scripts/check-mcp.ts --full",
+    "seed": "tsx scripts/seed-series.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
