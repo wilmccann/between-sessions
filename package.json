@@ -19,13 +19,16 @@
     "cdk": "cdk",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
-    "brief": "tsx scripts/brief.ts"
+    "brief": "tsx scripts/brief.ts",
+    "guardrails:restore": "tsx scripts/guardrails-restore.ts"
   },
   "packageManager": "yarn@4.18.1+sha512.b2e1e7524f654f2749d32b4ebcb4622473cb5bcbc485df2007e12a154e50162a4d795526768bc5f5b8f81717bfd79deb2472813d86fb5ae2eb551fa9c872b08f",
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1153.0",
     "@aws-sdk/client-dynamodb": "^3.1153.0",
+    "@aws-sdk/client-lambda": "^3.1153.0",
     "@aws-sdk/client-secrets-manager": "^3.1153.0",
+    "@aws-sdk/client-sns": "^3.1153.0",
     "@aws-sdk/lib-dynamodb": "^3.1153.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "zod": "^4.6.7"

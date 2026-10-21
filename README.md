@@ -109,6 +109,25 @@ For one person, a few dollars a month at most:
 
 `cdk destroy BetweenSessions` removes everything, including the table, except the Bee login secret, which `scripts/setup-bee-secret.sh` created.
 
+### Cost guardrails (optional)
+
+AWS has no hard spending cap, so worst-case spend is bounded in two ways. Rate limits in the stack itself: the API allows 2 requests a second (burst 5), worst case about $0.32 a day with the MCP Lambda, and the collector runs every 15 minutes, worst case about $0.38 a day. And a separate, account-wide `CostGuardrails` stack:
+
+- `account-daily` budget ($5, gross of credits): emails at 50%, 80% and 100%; at 100% it also triggers the kill switch.
+- `account-monthly` budget ($50): emails at 50% and 100% actual, and 100% forecast.
+- `bedrock-daily` budget ($2): emails at 100%.
+- Cost Anomaly Detection on every service: an email for each anomaly of $3 or more.
+- Kill switch: a Lambda that sets every `between-sessions-*` function to 0 concurrency and emails what it did. Its IAM policy can't touch anything else.
+
+```bash
+corepack yarn cdk deploy CostGuardrails -c alertEmail=you@example.com   # confirm the SNS email
+aws lambda invoke --function-name cost-guardrails-kill-switch \
+  --cli-binary-format raw-in-base64-out --payload '{"dryRun":true}' out.json && cat out.json
+corepack yarn guardrails:restore            # after the kill switch fired and the cause is fixed
+```
+
+Budgets update at least once a day and a daily budget compares the previous day's spend, so the kill switch fires hours after the fact. The rate limits are what bound the damage in between. Pass the same `-c alertEmail` on every deploy of this stack, or the email subscription is removed.
+
 ## Run locally
 
 Requires the [Bee CLI](https://www.npmjs.com/package/@beeai/cli) logged in with `bee login`.

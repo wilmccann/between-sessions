@@ -80,6 +80,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@aws-sdk/client-lambda@npm:^3.1153.0":
+  version: 3.1153.0
+  resolution: "@aws-sdk/client-lambda@npm:3.1153.0"
+  dependencies:
+    "@aws-sdk/core": "npm:^3.978.4"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.87"
+    "@aws-sdk/types": "npm:^3.974.6"
+    "@smithy/core": "npm:^3.36.0"
+    "@smithy/fetch-http-handler": "npm:^5.8.0"
+    "@smithy/node-http-handler": "npm:^4.12.1"
+    "@smithy/types": "npm:^4.19.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/2fe0d7d650fd82c5e1bf334045687b2eec967b4baee514885eb9be9ac9b4808ceef5444be3e5989b3c95cc72724242dbc788d20101e7aff85f91ba8804ab5fbe
+  languageName: node
+  linkType: hard
+
 "@aws-sdk/client-secrets-manager@npm:^3.1153.0":
   version: 3.1153.0
   resolution: "@aws-sdk/client-secrets-manager@npm:3.1153.0"
@@ -93,6 +109,22 @@ __metadata:
     "@smithy/types": "npm:^4.19.0"
     tslib: "npm:^2.6.2"
   checksum: 10c0/910e05cc03f798be34d47cb01e87807943f94e5640961d1eb0707e0ee581fe36042f4310ab3a89ca3789d3cf1c1a77bf1c8c6a72f91c9bc2a7662ace361e4b6d
+  languageName: node
+  linkType: hard
+
+"@aws-sdk/client-sns@npm:^3.1153.0":
+  version: 3.1153.0
+  resolution: "@aws-sdk/client-sns@npm:3.1153.0"
+  dependencies:
+    "@aws-sdk/core": "npm:^3.978.4"
+    "@aws-sdk/credential-provider-node": "npm:^3.972.87"
+    "@aws-sdk/types": "npm:^3.974.6"
+    "@smithy/core": "npm:^3.36.0"
+    "@smithy/fetch-http-handler": "npm:^5.8.0"
+    "@smithy/node-http-handler": "npm:^4.12.1"
+    "@smithy/types": "npm:^4.19.0"
+    tslib: "npm:^2.6.2"
+  checksum: 10c0/72080956af66a60185195d6f60f2440ad7be5fe25edea947674bd43caa804df1d0267df671c8b963f96b3191fd726a95fbf9e0aaf5455125d57c749926f74edd
   languageName: node
   linkType: hard
 
@@ -998,7 +1030,9 @@ __metadata:
   dependencies:
     "@aws-sdk/client-bedrock-runtime": "npm:^3.1153.0"
     "@aws-sdk/client-dynamodb": "npm:^3.1153.0"
+    "@aws-sdk/client-lambda": "npm:^3.1153.0"
     "@aws-sdk/client-secrets-manager": "npm:^3.1153.0"
+    "@aws-sdk/client-sns": "npm:^3.1153.0"
     "@aws-sdk/lib-dynamodb": "npm:^3.1153.0"
     "@beeai/cli": "npm:0.8.0"
     "@modelcontextprotocol/sdk": "npm:^1.32.1"
