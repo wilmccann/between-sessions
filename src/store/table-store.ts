@@ -1,15 +1,20 @@
 // SessionStore over a single-table key layout, shared by the file store and
 // DynamoDB so both behave the same:
 //   PK = SERIES#<id>
-//   SK = CONFIG | LATEST#SESSION | SESSION#<startISO>#V#<collectedAt>
+//   SK = CONFIG | SESSION#<startISO>#V#<collectedAt>
 //      | AGENDA#<createdISO>#<uuid> | TAKEAWAY#<sessionStartISO>#<uuid>
 //      | BRIEF#<sessionStartISO>
+//   PK = CLAIMS, SK = CONV#<conversationId>: which session holds each Bee
+//   conversation (see Claim).
+// LATEST#SESSION items written by earlier versions are ignored.
 import { createHash, randomUUID } from "node:crypto";
 import { normalizeSeries, type Series } from "../series.js";
 import type {
   AgendaItem,
+  Claim,
   PrepBrief,
   SessionInput,
+  SessionRef,
   SessionStore,
   SessionVersion,
   Takeaway,
@@ -21,9 +26,13 @@ export interface Item {
   [key: string]: unknown;
 }
 
+export type WriteOp = { put: Item } | { delete: { PK: string; SK: string } };
+
 export interface Table {
   get(pk: string, sk: string): Promise<Item | undefined>;
   put(item: Item): Promise<void>;
+  // All or nothing.
+  transact(ops: WriteOp[]): Promise<void>;
   // Items under pk whose SK starts with prefix, sorted by SK.
   query(pk: string, prefix: string, opts?: { descending?: boolean; limit?: number }): Promise<Item[]>;
   // Every item with this exact SK, across partitions.
@@ -31,7 +40,10 @@ export interface Table {
 }
 
 const pk = (seriesId: string) => `SERIES#${seriesId}`;
-const LATEST = "LATEST#SESSION";
+const CLAIMS = "CLAIMS";
+const claimSk = (conversationId: number) => `CONV#${conversationId}`;
+// Items that belong to one session and move with it.
+const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];
 
 export function contentHash(session: SessionInput): string {
   const h = createHash("sha256");
@@ -42,28 +54,92 @@ export function contentHash(session: SessionInput): string {
 
 const strip = <T>({ PK, SK, ...rest }: Item) => rest as T;
 
+// A transaction may touch each item once; the first op on an item wins.
+function onePerItem(ops: WriteOp[]): WriteOp[] {
+  const seen = new Set<string>();
+  return ops.filter((op) => {
+    const { PK, SK } = "put" in op ? op.put : op.delete;
+    const key = `${PK}|${SK}`;
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+}
+const sameTag = (a: SessionInput["tag"], b: SessionInput["tag"]) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 export class TableStore implements SessionStore {
   constructor(private readonly table: Table) {}
 
   async putSessionVersion(seriesId: string, session: SessionInput, collectedAt = new Date().toISOString()) {
+    return this.recordSession(seriesId, session, collectedAt);
+  }
+
+  async recordSession(seriesId: string, session: SessionInput, collectedAt: string, replaces: SessionRef[] = []) {
     const prefix = `SESSION#${session.start}#V#`;
     const existing = await this.table.query(pk(seriesId), prefix, { descending: true });
     const hash = contentHash(session);
     const current = existing[0] && strip<SessionVersion>(existing[0]);
+    const ops: WriteOp[] = [];
+    let version: SessionVersion;
+    let written = false;
     if (current && current.hash === hash) {
-      return { version: { ...current, versions: existing.length }, written: false };
+      version = { ...current, versions: existing.length };
+      // A new tag on the same content updates the latest version in place.
+      if (!sameTag(current.tag, session.tag)) {
+        version = { ...version, tag: session.tag };
+        ops.push({ put: { ...existing[0], tag: session.tag } });
+      }
+    } else {
+      version = { ...session, seriesId, hash, collectedAt, versions: existing.length + 1 };
+      ops.push({ put: { PK: pk(seriesId), SK: `${prefix}${collectedAt}`, ...version } });
+      written = true;
     }
-    const version: SessionVersion = { ...session, seriesId, hash, collectedAt, versions: existing.length + 1 };
-    await this.table.put({ PK: pk(seriesId), SK: `${prefix}${collectedAt}`, ...version });
-    const latest = await this.getLatestSession(seriesId);
-    if (!latest || latest.start <= session.start) {
-      await this.table.put({ PK: pk(seriesId), SK: LATEST, ...version });
+
+    const status = session.tag?.status ?? "auto";
+    const source = session.tag?.source ?? "schedule";
+    const claimed = new Set(session.parts.map((p) => p.id));
+    for (const id of claimed) {
+      const claim: Claim = { conversationId: id, seriesId, sessionStart: session.start, source, status };
+      ops.push({ put: { PK: CLAIMS, SK: claimSk(id), ...claim } });
     }
-    return { version, written: true };
+
+    for (const ref of replaces) {
+      if (ref.seriesId === seriesId && ref.start === session.start) continue;
+      ops.push(...(await this.moveOps(ref, { seriesId, start: session.start }, claimed)));
+    }
+    if (ops.length) await this.table.transact(onePerItem(ops));
+    return { version, written };
+  }
+
+  // Deletes a session's versions and brief, moves its takeaways and debriefs
+  // to `to`, and releases its conversation claims that `to` doesn't hold.
+  private async moveOps(from: SessionRef, to: SessionRef, keep: Set<number>): Promise<WriteOp[]> {
+    const ops: WriteOp[] = [];
+    const versions = await this.table.query(pk(from.seriesId), `SESSION#${from.start}#V#`);
+    for (const v of versions) {
+      ops.push({ delete: { PK: v.PK, SK: v.SK } });
+      for (const p of strip<SessionVersion>(v).parts) {
+        if (!keep.has(p.id)) ops.push({ delete: { PK: CLAIMS, SK: claimSk(p.id) } });
+      }
+    }
+    for (const kind of ATTACHED) {
+      for (const item of await this.table.query(pk(from.seriesId), `${kind}${from.start}#`)) {
+        const id = item.SK.slice(`${kind}${from.start}#`.length);
+        ops.push({ delete: { PK: item.PK, SK: item.SK } });
+        ops.push({
+          put: { ...item, PK: pk(to.seriesId), SK: `${kind}${to.start}#${id}`, seriesId: to.seriesId, sessionStart: to.start },
+        });
+      }
+    }
+    ops.push({ delete: { PK: pk(from.seriesId), SK: `BRIEF#${from.start}` } });
+    return ops;
+  }
+
+  async listClaims() {
+    const items = await this.table.query(CLAIMS, "CONV#");
+    return new Map(items.map((i) => [Number(i.conversationId), strip<Claim>(i)]));
   }
 
   async getLatestSession(seriesId: string) {
-    const item = await this.table.get(pk(seriesId), LATEST);
+    const [item] = await this.table.query(pk(seriesId), "SESSION#", { descending: true, limit: 1 });
     return item ? strip<SessionVersion>(item) : null;
   }
 

@@ -2,8 +2,8 @@
 // insights Bee generated after each session.
 import { listConversations, listInsights, type BeeConversation, type BeeInsight } from "./bee/cli.js";
 import { hasSchedule, type Series } from "./series.js";
-import type { SessionInput } from "./store/types.js";
-import { formatLocal, HOUR, localParts, toMinutes } from "./time.js";
+import type { SessionInput, SessionTag } from "./store/types.js";
+import { formatLocal, HOUR, localParts, MINUTE, toMinutes, zonedTime } from "./time.js";
 
 const LOOKBACK_DAYS = 21;
 
@@ -18,29 +18,52 @@ export interface Session {
   end: number;
 }
 
-export function matchSessions(conversations: BeeConversation[], series: Series): Session[] {
+export interface Span {
+  from: number;
+  to: number;
+}
+
+const overlapMs = (c: BeeConversation, span: Span) => Math.min(c.end_time, span.to) - Math.max(c.start_time, span.from);
+
+// The conversations that overlap a span by at least minOverlapMinutes each,
+// in order. Null when none do.
+export function partsInSpan(conversations: BeeConversation[], span: Span, minOverlapMinutes: number): BeeConversation[] {
+  return conversations
+    .filter((c) => overlapMs(c, span) >= minOverlapMinutes * MINUTE)
+    .sort((a, b) => a.start_time - b.start_time);
+}
+
+// A session found from a schedule window: the overlapping parts, if their
+// overlap adds up to minDurationMinutes. It spans the parts themselves.
+export function windowSession(parts: BeeConversation[], span: Span, minDurationMinutes: number): Session | null {
+  const total = parts.reduce((sum, c) => sum + Math.max(0, overlapMs(c, span)), 0);
+  if (!parts.length || total < minDurationMinutes * MINUTE) return null;
+  return { parts, start: parts[0].start_time, end: Math.max(...parts.map((p) => p.end_time)) };
+}
+
+// The series' window on each scheduled date that has a conversation.
+export function scheduleSpans(conversations: BeeConversation[], series: Series): Span[] {
   if (!hasSchedule(series)) return [];
-  const windowStart = toMinutes(series.windowStart);
-  const windowEnd = toMinutes(series.windowEnd);
-  const byDay = new Map<string, { parts: BeeConversation[]; overlap: number }>();
+  const dates = new Map<string, Span>();
   for (const c of conversations) {
-    const { weekday, minutes } = localParts(c.start_time, series.timezone);
-    if (weekday !== series.weekday) continue;
-    const endMinutes = minutes + (c.end_time - c.start_time) / 60_000;
-    const overlap = Math.min(endMinutes, windowEnd) - Math.max(minutes, windowStart);
-    if (overlap < series.minOverlapMinutes) continue;
-    const day = new Date(c.start_time).toLocaleDateString("en-CA", { timeZone: series.timezone });
-    const entry = byDay.get(day) ?? { parts: [], overlap: 0 };
-    entry.parts.push(c);
-    entry.overlap += overlap;
-    byDay.set(day, entry);
+    const p = localParts(c.start_time, series.timezone);
+    if (p.weekday !== series.weekday) continue;
+    const key = `${p.year}-${p.month}-${p.day}`;
+    if (dates.has(key)) continue;
+    dates.set(key, {
+      from: zonedTime(p.year, p.month, p.day, toMinutes(series.windowStart), series.timezone),
+      to: zonedTime(p.year, p.month, p.day, toMinutes(series.windowEnd), series.timezone),
+    });
   }
-  return [...byDay.values()]
-    .filter((d) => d.overlap >= series.minDurationMinutes)
-    .map(({ parts }) => {
-      parts.sort((a, b) => a.start_time - b.start_time);
-      return { parts, start: parts[0].start_time, end: Math.max(...parts.map((p) => p.end_time)) };
-    })
+  return [...dates.values()];
+}
+
+// Sessions from the series' schedule window, newest first. Each is a span
+// on its own date, not "everything that day".
+export function matchSessions(conversations: BeeConversation[], series: Series): Session[] {
+  return scheduleSpans(conversations, series)
+    .map((span) => windowSession(partsInSpan(conversations, span, series.minOverlapMinutes), span, series.minDurationMinutes))
+    .filter((s): s is Session => s !== null)
     .sort((a, b) => b.start - a.start);
 }
 
@@ -73,8 +96,9 @@ export async function collectSnapshot(now = Date.now()): Promise<Snapshot> {
 
 // What the store keeps for one session: the parts' summaries and the first
 // insight batch after it.
-export function sessionInput(session: Session, insights: BeeInsight[], series: Series): SessionInput {
+export function sessionInput(session: Session, insights: BeeInsight[], series: Series, tag?: SessionTag): SessionInput {
   return {
+    ...(tag && { tag }),
     start: new Date(session.start).toISOString(),
     end: new Date(session.end).toISOString(),
     parts: session.parts.map((p) => ({

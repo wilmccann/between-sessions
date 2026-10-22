@@ -2,7 +2,7 @@
 // file under snapshots/, readable only by you (0600).
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { TableStore, type Item, type Table } from "./table-store.js";
+import { TableStore, type Item, type Table, type WriteOp } from "./table-store.js";
 
 const DEFAULT_PATH = process.env.STORE_FILE ?? "snapshots/store.json";
 
@@ -23,8 +23,19 @@ class FileTable implements Table {
   }
 
   async put(item: Item) {
+    await this.transact([{ put: item }]);
+  }
+
+  async transact(ops: WriteOp[]) {
     const items = await this.load();
-    items[`${item.PK}|${item.SK}`] = item;
+    for (const op of ops) {
+      if ("put" in op) items[`${op.put.PK}|${op.put.SK}`] = op.put;
+      else delete items[`${op.delete.PK}|${op.delete.SK}`];
+    }
+    await this.save(items);
+  }
+
+  private async save(items: Record<string, Item>) {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     const tmp = `${this.path}.tmp`;
     await writeFile(tmp, JSON.stringify(items), { mode: 0o600 });

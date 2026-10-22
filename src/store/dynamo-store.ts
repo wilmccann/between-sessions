@@ -7,9 +7,10 @@ import {
   PutCommand,
   QueryCommand,
   ScanCommand,
+  TransactWriteCommand,
   type QueryCommandInput,
 } from "@aws-sdk/lib-dynamodb";
-import { TableStore, type Item, type Table } from "./table-store.js";
+import { TableStore, type Item, type Table, type WriteOp } from "./table-store.js";
 
 class DynamoTable implements Table {
   constructor(
@@ -24,6 +25,27 @@ class DynamoTable implements Table {
 
   async put(item: Item) {
     await this.doc.send(new PutCommand({ TableName: this.name, Item: item }));
+  }
+
+  // DynamoDB allows 100 items per transaction; a larger batch (a session
+  // with very many versions) is split, and only each chunk is atomic.
+  async transact(ops: WriteOp[]) {
+    for (let i = 0; i < ops.length; i += 100) {
+      const chunk = ops.slice(i, i + 100);
+      if (chunk.length === 1 && "put" in chunk[0]) {
+        await this.put(chunk[0].put);
+        continue;
+      }
+      await this.doc.send(
+        new TransactWriteCommand({
+          TransactItems: chunk.map((op) =>
+            "put" in op
+              ? { Put: { TableName: this.name, Item: op.put } }
+              : { Delete: { TableName: this.name, Key: op.delete } },
+          ),
+        }),
+      );
+    }
   }
 
   async query(pk: string, prefix: string, { descending = false, limit }: { descending?: boolean; limit?: number } = {}) {

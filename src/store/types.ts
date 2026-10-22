@@ -18,12 +18,39 @@ export interface SessionInsight {
   generatedAt: string; // ISO
 }
 
+// Why a session is filed under its series. `source` is the evidence that
+// placed it; `status` is whether you've seen it.
+export type TagSource = "marker" | "schedule" | "keyword" | "pattern" | "model" | "you";
+export type TagStatus = "auto" | "pending" | "confirmed" | "rejected";
+export interface SessionTag {
+  source: TagSource;
+  confidence: "certain" | "high" | "low";
+  status: TagStatus;
+  reason: string; // short, no Bee content: "Tue 17:00 to 18:00 slot"
+}
+
+// Which session holds a Bee conversation, so no conversation is stored in
+// two sessions. A rejected conversation ("not a session") keeps only this.
+export interface Claim {
+  conversationId: number;
+  seriesId: string; // "" when rejected
+  sessionStart: string; // "" when rejected
+  source: TagSource;
+  status: TagStatus;
+}
+
+export interface SessionRef {
+  seriesId: string;
+  start: string;
+}
+
 // One session as Bee described it at collection time.
 export interface SessionInput {
   start: string; // ISO; identifies the session within its series
   end: string;
   parts: SessionPart[];
   insights: SessionInsight[];
+  tag?: SessionTag; // missing on versions stored before tags existed
 }
 
 export interface SessionVersion extends SessionInput {
@@ -66,6 +93,16 @@ export interface SessionStore {
     session: SessionInput,
     collectedAt?: string,
   ): Promise<{ version: SessionVersion; written: boolean }>;
+  // putSessionVersion, plus: claims the session's conversations, and takes
+  // over the sessions in `replaces` (their takeaways and debriefs move to
+  // this one, their versions are deleted), all in one transaction.
+  recordSession(
+    seriesId: string,
+    session: SessionInput,
+    collectedAt: string,
+    replaces?: SessionRef[],
+  ): Promise<{ version: SessionVersion; written: boolean }>;
+  listClaims(): Promise<Map<number, Claim>>;
   getLatestSession(seriesId: string): Promise<SessionVersion | null>;
   // Latest version of each session, newest session first.
   listSessions(seriesId: string, limit: number): Promise<SessionVersion[]>;

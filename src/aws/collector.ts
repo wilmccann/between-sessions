@@ -21,6 +21,7 @@ export interface CollectorResult {
   insights: number;
   series: number;
   matched: number;
+  replaced: number;
   written: number;
   writtenSessions: { seriesId: string; start: string; versions: number }[];
   briefs: number;
@@ -81,6 +82,7 @@ export async function handler(): Promise<CollectorResult> {
     insights: snapshot.insights.length,
     series: run.series,
     matched: run.matched,
+    replaced: run.replaced,
     written: run.written.length,
     writtenSessions: run.written.map((v) => ({ seriesId: v.seriesId, start: v.start, versions: v.versions })),
     briefs: notes.briefs,
