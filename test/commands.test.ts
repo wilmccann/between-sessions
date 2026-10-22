@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseCommand } from "../src/commands.js";
+import { parseCommand, rehearsal } from "../src/commands.js";
 import { meetingTypes } from "./fixtures/meeting-types.js";
 
 const parse = (text: string) => parseCommand(text, meetingTypes);
@@ -71,5 +71,26 @@ describe("parseCommand: review", () => {
     assert.deepEqual(parse("Not a session."), { kind: "not-session" });
     assert.deepEqual(parse("That wasn't a session"), { kind: "not-session" });
     assert.equal(parse("Retag")?.kind, "unfiled");
+  });
+});
+
+describe("rehearsal: the Test: prefix", () => {
+  it("is a plain note to the collector, and the command to the watcher", () => {
+    assert.equal(parse("Test: start coaching session"), null);
+    assert.equal(rehearsal("Test: start coaching session"), "start coaching session");
+    assert.equal(parse("Testing, end session."), null);
+    assert.equal(rehearsal("Testing, end session."), "end session.");
+    assert.equal(parse("Okay, test: agenda: x"), null);
+    assert.equal(rehearsal("Okay, test: agenda: x"), "agenda: x");
+    assert.equal(rehearsal("test - debrief: fine"), "debrief: fine");
+    assert.deepEqual(parse(rehearsal("Test: start coaching session")!), { kind: "start", series: "coaching" });
+  });
+
+  it("leaves other notes alone", () => {
+    assert.equal(rehearsal("Tests came back fine"), null);
+    assert.equal(parse("Tests came back fine"), null);
+    assert.equal(rehearsal("Start session"), null);
+    assert.equal(rehearsal("Testament"), null);
+    assert.deepEqual(parse("Start session"), { kind: "start" });
   });
 });

@@ -39,8 +39,19 @@ function nameFrom(rest: string): string {
 const knows = (series: Series[], name: string) => name !== "" && matchSeriesName(series, name).kind !== "none";
 const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
+const withoutFillers = (raw: string) => raw.replace(/^\s*(?:(?:okay|ok|um+|uh+|so|hey bee)\b[\s,.]*)+/i, "").trim();
+
+// "Test: start coaching session" rehearses a command: the watcher shows what
+// it would do, and the collector treats it as a plain note. Returns the
+// words after "test" or "testing", or null when the note isn't a rehearsal.
+export function rehearsal(raw: string): string | null {
+  const m = /^test(?:ing)?(?:[:,.\-]|\s)[\s:,.\-]*(.*)$/is.exec(withoutFillers(raw));
+  return m ? m[1].trim() : null;
+}
+
 export function parseCommand(raw: string, series: Series[] = []): Command | null {
-  const text = raw.replace(/^\s*(?:(?:okay|ok|um+|uh+|so|hey bee)\b[\s,.]*)+/i, "").trim();
+  if (rehearsal(raw) !== null) return null;
+  const text = withoutFillers(raw);
 
   let m = /^not an? session\b|^(?:that|this|it) (?:was not|wasn'?t|is not|isn'?t) an? (?:session|meeting)\b|^no session\b/i.exec(text);
   if (m) return { kind: "not-session" };
