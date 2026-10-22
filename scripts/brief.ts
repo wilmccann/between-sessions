@@ -1,7 +1,8 @@
 // Prints the prep brief from the deployed MCP server, for reading before a
 // session. It prints personal content, so run it in your own terminal:
 //
-//   MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' asm-exec -- corepack yarn brief
+//   AWS_PROFILE=bee-agent AWS_REGION=us-east-1 \
+//     MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' asm-exec -- corepack yarn brief
 //
 // --shape prints counts and lengths only (for checks run by an agent).
 import { execFile } from "node:child_process";
