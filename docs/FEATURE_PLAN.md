@@ -24,6 +24,10 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 **Cut for the submission:**
 - ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next".
 
+**Testing tools (MVP, local only):**
+- [ ] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, a `Test:` rehearsal prefix, `--collect`, `--shape`.
+- [ ] [Local review page](#testing-tools-mvp-local-only) `yarn review-ui`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
+
 **Operations:**
 - [x] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack (deployed Thu Oct 22).
 
@@ -325,6 +329,30 @@ Locations, utterances and calendar data are never used as evidence.
 
 Prerequisites: Node 22.18 or later; the bridge cloned into `vendor/` (git-ignored; its agent instruction files are untrusted); `.env` pointing at our MCP URL with the token taken from the secret name, never the value; Nova 2 Lite added to `bee-agent`'s Bedrock permissions; AgentCore Memory off; the kill switch extended to the bridge's Lambda prefix; Docker for Gate 2; the ASK CLI for Gate 3. Gate 0 (GPT-5.6 on bedrock-mantle) failed on Oct 21 with an account-level block; see [archive/BUILD_PLAN.md](archive/BUILD_PLAN.md).
 
+## Testing tools (MVP, local only)
+
+**Why they're in the MVP:** the Bee button has no feedback of its own, and the product only sees a voice note after Bee processes it and the collector runs (up to 15 minutes). That's too slow to test command phrasing and too opaque to trust. Both tools run on your Mac only; the product path (collector, table, MCP tools) is unchanged.
+
+**Voice-note watcher (`yarn watch`), built first:**
+- Runs `bee stream --json` filtered to journal events (`journal-created`, `journal-updated`, `journal-text`) and conversation events (`new-conversation`, `update-conversation`, `delete-conversation`). Utterance, location and todo events are never subscribed to.
+- For each voice note: the time, what Bee heard, and what the product will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser and your stored series as the deployed collector. If Bee's `cleanedUpText` parses differently from the raw text, it says so.
+- For conversations: only the id, the state change and the time, so you can see whether your talk lands between the markers.
+- **`Test:` prefix:** "Test: start coaching session" shows as "would be START, series coaching" and the collector ignores it, so phrasing can be rehearsed without creating series, markers or agenda items.
+- **`--collect`:** when a voice note turns `READY`, invokes the collector Lambda once as `bee-agent` and prints its counts, so filing shows end to end in about a minute.
+- **`--shape`:** hides all text (kinds, times and parse results only), so an agent can watch too.
+- Prints to your terminal only; never writes events to disk; no webhook. Bee's stream is at-most-once, so it is a testing probe, never the product path.
+
+**Local review page (`yarn review-ui`), read-only first, then edits:**
+- Served on `127.0.0.1` only, like the local MCP server; reads and writes the table with your `bee-agent` credentials through the existing store. It checks the Host header and needs a token made at each launch.
+- One page: series; sessions with date, time, length, tag (source, confidence, status, reason), the last 4 characters of each Bee id, and parts; markers; a voice-note log (what each note did); the review queue; agenda items with their source. Summaries stay hidden unless you open a row.
+- Edits (after test D): retag, not a session, confirm, remove agenda item, through the same code as `retag_session` and `remove_agenda_item`, with the same read-back.
+- The hosted review web app with Cognito sign-in stays after Friday.
+
+**Works when:**
+- With synthetic stream events, the watcher prints the expected line for each command, plain note, `Test:` note and conversation change, and `--shape` prints no text.
+- Live: a hold-and-speak "Test: start coaching session" appears in the watcher within seconds with the right parse, and the next collector run files nothing for it.
+- The review page lists the test D session as marked by you, and the unnamed pair under Other pending review.
+
 ## Small addition: "when is my next session"
 
 The series config already has the weekday and start time, so the next session's date is computed, not stored. It appears in the prep brief, the digest and the Alexa greeting. It orients you instantly and costs almost nothing.
@@ -375,3 +403,4 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 21 | Session tagging and review is MVP: every session gets a tag with a best guess, unsure guesses wait in a review queue, and `review_sessions` and `retag_session` work in Claude Code, by Bee button and (once it works) by Alexa. Pending guesses store no summary until confirmed. The review web app waits until after Friday because it needs Cognito sign-in. |
 | Oct 22 | Alexa voice is cut for the submission: every Nova tokens-per-day quota in us-east-1 was still 0 on Thursday morning, and Gates 1 to 3 couldn't finish before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. The MVP (menu, digest, Bee button, tagging and review, next session) and table protection are deployed. |
 | Oct 22 | Reviewed the overnight build's defaults and kept them: command words need a session word or known series name; a named start for a new name creates an unscheduled series; two markers give an exact span; debriefs attach within 3 hours; unnamed starts go to the slot's series or Other, pending review; a series without capture keywords files its schedule slot as before; 48-hour receipts in every brief; a four-item spoken menu; a todo count, not todo text, in the digest. Changed one: "Not a session" never deletes your words; with no session before, takeaways and debriefs are kept under Other. |
+| Oct 22 | Two local-only testing tools join the MVP: a voice-note watcher on `bee stream` (with a `Test:` rehearsal prefix the collector ignores, and `--collect` for end-to-end checks in about a minute) and a local review page on 127.0.0.1 (read-only first, then edits). The stream stays a testing probe because its delivery is at-most-once; the hosted review web app stays after Friday. |
