@@ -16,6 +16,9 @@ export interface ToolDef {
   title: string;
   description: string;
   register(server: McpServer, ctx: ToolContext): void;
+  // Runs the tool directly, with the same input checks (throws on bad
+  // input) and no "Next:" hint. For local tools such as the review page.
+  call(args: unknown, ctx: ToolContext): Promise<CallToolResult>;
 }
 
 export function defineTool<S extends z.ZodRawShape>(def: {
@@ -37,6 +40,7 @@ export function defineTool<S extends z.ZodRawShape>(def: {
       server.registerTool(name, { title, description, inputSchema, annotations }, (async (args: z.infer<z.ZodObject<S>>) =>
         withNext(next, await run(args, ctx))) as never);
     },
+    call: (args, ctx) => run(z.object(inputSchema).parse(args) as z.infer<z.ZodObject<S>>, ctx),
   };
 }
 

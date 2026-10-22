@@ -12,6 +12,7 @@
     "collect": "tsx scripts/collect.ts",
     "mcp": "tsx src/local/mcp-http.ts",
     "watch": "tsx scripts/watch.ts",
+    "review-ui": "tsx src/local/review-ui.ts",
     "check": "tsx scripts/check-mcp.ts",
     "show": "tsx scripts/check-mcp.ts --full",
     "check:remote": "tsx scripts/check-remote.ts",
