@@ -21,11 +21,11 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [x] [Session tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp): tags with best guesses, the review queue, `review_sessions` and `retag_session`, the brief's review line, Bee button retag commands.
 - [x] [When is my next session](#small-addition-when-is-my-next-session).
 
-**Conditional:**
-- [ ] [Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen), if Nova 2 Lite answers by Thu Oct 22, 1pm ET.
+**Cut for the submission:**
+- ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next".
 
 **Operations:**
-- [ ] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack.
+- [x] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack (deployed Thu Oct 22).
 
 **Submission (by Fri Oct 23, 12:00pm PDT):**
 - [x] README updated for the new capabilities.
@@ -296,7 +296,7 @@ Locations, utterances and calendar data are never used as evidence.
 
 **Data exposed:** same as the typed tools; answers are spoken aloud, so the brief's short form must be safe to hear in public (no verbatim content).
 
-**Depends on:** Nova 2 Lite answering in us-east-1. If it doesn't arrive in time, the same conversation is demoed typed in Claude Code, and voice moves to "next".
+**Depends on:** Nova 2 Lite answering in us-east-1. **Status: cut for the submission (Thu Oct 22).** The quota hadn't arrived, so the same conversation is demoed typed in Claude Code, and voice moves to "next". `bee-agent` already has Nova 2 Lite invoke access, so the gates can resume as soon as the quota lands.
 
 **Works when:**
 - Locally (`npm run chat`), the scripted asks call the right tool, with typical turns of 4 s or less and none over the bridge's 6.5 s budget.
@@ -339,7 +339,7 @@ The series config already has the weekday and start time, so the next session's 
 | --- | --- | --- |
 | 1 | ~~Do Bee journals work on Android?~~ | **Yes** (Oct 21 test; see capability 3) |
 | 2 | Does a spoken reminder become a Bee todo or suggestion, and how fast? | Partly answered: it became a suggestion, not a todo. Timing still unmeasured |
-| 3 | When does Nova 2 Lite answer in us-east-1? | A tiny converse call before each work block |
+| 3 | When does Nova 2 Lite answer in us-east-1? | Still 0 tokens per day on Thu Oct 22 morning (AWS Support case open). Alexa is cut for the submission; recheck after |
 | 4 | Which keywords should a series' topics and capture use? | Start with `captureKeywords` in the series config; tune on real data |
 | 5 | Is the short spoken brief safe to hear aloud in public? | Review the short form before the Alexa demo |
 | 6 | Is a journal's `created_at` the moment you spoke, or when Bee finished processing it? Markers depend on it | Test A (compare with the phone-clock times) |
@@ -360,3 +360,4 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 21 | Calendar ruled out as a session source: no calendar integration on Bee's free tier, and Bee Pro can't be purchased right now (in-app and Google Play). |
 | Oct 21 | AWS Support denied Sonnet 5.5; approved Nova Lite and Nova 2 Lite (propagating). Bedrock's role is the Alexa agent model, plus optional topic naming at collect time. |
 | Oct 21 | Session tagging and review is MVP: every session gets a tag with a best guess, unsure guesses wait in a review queue, and `review_sessions` and `retag_session` work in Claude Code, by Bee button and (once it works) by Alexa. Pending guesses store no summary until confirmed. The review web app waits until after Friday because it needs Cognito sign-in. |
+| Oct 22 | Alexa voice is cut for the submission: every Nova tokens-per-day quota in us-east-1 was still 0 on Thursday morning, and Gates 1 to 3 couldn't finish before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. The MVP (menu, digest, Bee button, tagging and review, next session) and table protection are deployed. |
