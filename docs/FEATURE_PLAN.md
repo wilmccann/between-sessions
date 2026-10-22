@@ -25,7 +25,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next".
 
 **Testing tools (MVP, local only):**
-- [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, a `Test:` rehearsal prefix, `--collect`, `--shape`.
+- [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, "Marty, test:" dry runs, `--collect`, `--shape`.
 - [x] [Local review page](#testing-tools-mvp-local-only) `yarn review-ui`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
 
 **Operations:**
@@ -177,19 +177,20 @@ Today, a request that names no series goes to whichever series the store lists f
 
 **How the button is set up:** in the Bee app, Action Button, "Hold and speak" stays on **Voice Notes** (not Voice Assistant). Each hold-and-speak becomes a Bee journal, which the CLI can read. Voice Assistant sends the request to Bee's own assistant, which this product can't see. Double press: "Process current conversation" (or "Bookmark and process"), so pressing it at the end of a session makes Bee finish that conversation and its summary sooner. Bookmarks themselves aren't in the API, so they carry no meaning for this product.
 
-**What you experience:**
+**What you experience:** every command starts with the product's name, **Marty** (or **Martin**). A voice note without the name is a plain note, whatever it says.
 
 | You hold the button and say | What the product does |
 | --- | --- |
-| "Start session" (or "Start coaching") | Marks the session's start at the time of the note |
-| "Start session: Acme interview" | Marks the start of a one-off or new series by name; no schedule needed |
-| "End session" | Marks the session's end; the session is captured from the conversations between the two markers |
-| "Debrief: ..." | Attaches your debrief, in your words, to the session that just ended |
-| "Agenda: the work trip" (or "For therapy: ...") | Adds an agenda item for the next session, marked "from Bee" |
-| "Takeaway: delegate earlier" | Saves a takeaway on the last session |
+| "Marty, start session" (or "Marty, start coaching") | Marks the session's start at the time of the note |
+| "Marty, start session: Acme interview" | Marks the start of a one-off or new series by name; no schedule needed |
+| "Marty, end session" | Marks the session's end; the session is captured from the conversations between the two markers |
+| "Marty, debrief: ..." | Attaches your debrief, in your words, to the session that just ended |
+| "Marty, agenda: the work trip" (or "Marty, for therapy: ...") | Adds an agenda item for the next session, marked "from Bee" |
+| "Marty, takeaway: delegate earlier" | Saves a takeaway on the last session |
+| "Marty, test: ..." | A dry run: the watcher shows what the command would do; nothing is filed |
 
-- The button gives no feedback of its own, and processing isn't instant (Bee transcribes the note, then the collector picks it up within 15 minutes). So every touchpoint confirms what was filed: the brief, the digest and the Alexa greeting open with, for example, "Got it: session ended 11:02, debrief saved, 1 agenda item added."
-- A note that starts with a command word but can't be filed is reported, not dropped: "1 voice note I couldn't file."
+- The button gives no feedback of its own. Bee has the note ready in about 5 seconds (measured Oct 22); the collector files it within 15 minutes, or within seconds while `yarn watch --collect` runs. So every touchpoint confirms what was filed: the brief, the digest and the Alexa greeting open with, for example, "Got it: session ended 11:02, debrief saved, 1 agenda item added."
+- A note that starts with "Marty" but can't be filed or understood is reported, not dropped: "1 voice note I couldn't file" (the reason, such as "didn't understand", is kept; the note's words are not).
 - "Drop the work trip from my agenda" removes an item; any filed item can be undone.
 
 **Supports:**
@@ -204,7 +205,7 @@ Today, a request that names no series goes to whichever series the store lists f
 - **Spoken series names, fuzzy-matched:** "Start session: <name>" picks the closest existing series name, so a transcription slip ("Akme") doesn't create a duplicate. A clearly new name creates a new series with no schedule.
 - **An "Other" series:** an unnamed or unclear "start session" goes to the only series when there is one, and otherwise to a catch-all "Other" series, which you can rename or merge later.
 - Storage needs no change: sessions are already kept per series (`SERIES#<id>`, one item per session version), and the tools already take an optional series name.
-- The collector reads `bee journals list` every run and parses each `READY` journal's first words against a small command list, with forgiving matching for transcription slips ("and session"). Each journal is used once (by Bee id).
+- The collector reads `bee journals list` every run. A `READY` journal is a command only if its raw text starts with the name ("Marty" or "Martin", after fillers like "okay"); the words after it are parsed against a small command list, with forgiving matching for transcription slips ("and session"). The raw text is used because Bee's cleaned-up text drops a leading name. Each journal is used once (by Bee id).
 - **Markers:** the journal's time marks the start or end. The session is built from the Bee conversations that overlap the marked span. Rules for missing halves: a start with no end closes at the end of the last overlapping conversation (or after a maximum length set per series); an end with no start opens at the start of the first overlapping conversation. Sessions without markers, including all sessions before markers existed, still come from the schedule window.
 - **Debrief:** a "Debrief:" note within a few hours of an end marker attaches to that session; later, to the most recent session.
 - **Agenda, takeaway:** the existing `add_agenda_item` and `save_takeaway` storage, with `source: bee` and the journal id.
@@ -229,16 +230,23 @@ Today, a request that names no series goes to whichever series the store lists f
 | D: combined | Thu Oct 22, 4pm (Fri is the spare) | The script below | Markers, debrief, agenda, a review item and timing together, on the deployed build. No seeding: "Start coaching session" creates an unscheduled Coaching series |
 
 **Test D script** (normal voice, a few seconds between holds; note the phone-clock time of each):
-1. *(hold)* "Start coaching session." Talk for 3 to 4 minutes.
-2. *(hold)* "End coaching session."
-3. *(hold)* "Debrief: the test went fine."
-4. *(hold)* "Agenda for coaching: bring up the work trip."
-5. For a real review item: *(hold)* "Start session." Talk for 2 minutes. *(hold)* "End session." With two series and no slot at that hour, this pair is filed under Other, pending review.
-6. Within about 15 minutes the next brief opens with what was filed, and `review_sessions` lists the unnamed session. Record the retag for the video: "That was coaching."
+1. *(hold)* "Marty, start coaching session." Talk for 3 to 4 minutes.
+2. *(hold)* "Marty, end coaching session."
+3. *(hold)* "Marty, debrief: the test went fine."
+4. *(hold)* "Marty, agenda for coaching: bring up the work trip."
+5. For a real review item: *(hold)* "Marty, start session." Talk for 2 minutes. *(hold)* "Marty, end session." With two series and no slot at that hour, this pair is filed under Other, pending review.
+6. Within about 15 minutes (seconds with `yarn watch --collect`) the next brief opens with what was filed, and `review_sessions` lists the unnamed session. Record the retag for the video: "Marty, that was coaching."
 
-Say "session", not "call" ("Start a coaching call" names a separate "coaching call" series). Always name the series in the first pair: with only one series, an unnamed start goes to that series.
+Say "session", not "call" ("Marty, start a coaching call" names a separate "coaching call" series). Always name the series in the first pair: with only one series, an unnamed start goes to that series. Before step 6, check that the review page shows the Coaching series: "that was X" for a series that doesn't exist is reported as unfiled.
 
 **Findings Oct 22:** the 4 voice notes Bee holds (Oct 21 evening) contain no command words, so test D is the first real-device test of the parser. On 20 likely phrasings (including "Okay, start...", "Starting...", "And coaching session" for a misheard "End", and "The brief:" for "Debrief:") the deployed parser gives the intended command.
+
+**Findings Oct 22, afternoon (watcher, 40 voice notes):**
+- Bee has a voice note `READY` 3 to 6 seconds after it starts; a warm collector run takes 2 to 4 seconds.
+- Transcription changes punctuation: "Test:" comes back as "Test." or "Test", and colons are dropped ("Agenda for coaching. Bring up the work trip."). The parser accepts any separator.
+- Bee's cleaned-up text drops a leading name: "Marty, start coaching session." is cleaned to "Start coaching session." So the name is checked in the raw text. "Marty" and "Martin" were transcribed correctly 3 times out of 3.
+- 22 rehearsed border cases gave the predicted parse, including four false positives: "and then we talked about the session" (an end), "end session, debrief: it went well" (one end with a made-up series name), "that was a great session" (a retag to "great") and "no session this week, it got cancelled" (not a session).
+- Four notes said without "Test" were filed for real: two new series ("Acme", "Coaching Call"), a debrief on the last real session and an agenda item, and an open start then filed a session from an ambient conversation. All were undone by hand. This is why commands now need the name.
 
 **Works when:**
 - With synthetic fixtures: start and end notes produce a session with exactly that span from the overlapping conversations; missing-half rules hold; a debrief, an agenda note and a takeaway note each file once; an unrecognized note is reported.
@@ -337,20 +345,20 @@ Prerequisites: Node 22.18 or later; the bridge cloned into `vendor/` (git-ignore
 - Runs `bee stream --json` filtered to journal events (`journal-created`, `journal-updated`, `journal-text`) and conversation events (`new-conversation`, `update-conversation`, `delete-conversation`). Utterance, location and todo events are never subscribed to.
 - For each voice note: the time, what Bee heard, and what the product will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser and your stored series as the deployed collector. If Bee's `cleanedUpText` parses differently from the raw text, it says so.
 - For conversations: only the id, the state change and the time, so you can see whether your talk lands between the markers.
-- **`Test:` prefix:** "Test: start coaching session" shows as "would be START, series coaching" and the collector ignores it, so phrasing can be rehearsed without creating series, markers or agenda items.
+- **Dry runs:** "Marty, test: start coaching session" (or "Test: Marty, start coaching session") shows as "would be START, series coaching" and the collector ignores it, so phrasing can be rehearsed without creating series, markers or agenda items. The watcher reloads your series after each collector run, so a series created a moment ago is known.
 - **`--collect`:** when a voice note turns `READY`, invokes the collector Lambda once as `bee-agent` and prints its counts, so filing shows end to end in about a minute.
 - **`--shape`:** hides all text (kinds, times and parse results only), so an agent can watch too.
 - Prints to your terminal only; never writes events to disk; no webhook. Bee's stream is at-most-once, so it is a testing probe, never the product path.
 
 **Local review page (`yarn review-ui`), read-only first, then edits:**
-- Served on `127.0.0.1` only, like the local MCP server; reads and writes the table with your `bee-agent` credentials through the existing store. It checks the Host header and needs a token made at each launch.
+- Served on `127.0.0.1` only, like the local MCP server; reads and writes the table with your `bee-agent` credentials through the existing store (edits need `dynamodb:DeleteItem`, added to `infra/bee-agent-access.yaml` on Oct 22). It checks the Host header and needs a token made at each launch.
 - One page: series; sessions with date, time, length, tag (source, confidence, status, reason), the last 4 characters of each Bee id, and parts; markers; a voice-note log (what each note did); the review queue; agenda items with their source. Summaries stay hidden unless you open a row.
 - Edits (after test D): retag, not a session, confirm, remove agenda item, through the same code as `retag_session` and `remove_agenda_item`, with the same read-back.
 - The hosted review web app with Cognito sign-in stays after Friday.
 
 **Works when:**
 - With synthetic stream events, the watcher prints the expected line for each command, plain note, `Test:` note and conversation change, and `--shape` prints no text.
-- Live: a hold-and-speak "Test: start coaching session" appears in the watcher within seconds with the right parse, and the next collector run files nothing for it.
+- Live: a hold-and-speak "Marty, test: start coaching session" appears in the watcher within seconds with the right parse, and the next collector run files nothing for it.
 - The review page lists the test D session as marked by you, and the unnamed pair under Other pending review.
 
 ## Small addition: "when is my next session"
@@ -404,3 +412,4 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 22 | Alexa voice is cut for the submission: every Nova tokens-per-day quota in us-east-1 was still 0 on Thursday morning, and Gates 1 to 3 couldn't finish before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. The MVP (menu, digest, Bee button, tagging and review, next session) and table protection are deployed. |
 | Oct 22 | Reviewed the overnight build's defaults and kept them: command words need a session word or known series name; a named start for a new name creates an unscheduled series; two markers give an exact span; debriefs attach within 3 hours; unnamed starts go to the slot's series or Other, pending review; a series without capture keywords files its schedule slot as before; 48-hour receipts in every brief; a four-item spoken menu; a todo count, not todo text, in the digest. Changed one: "Not a session" never deletes your words; with no session before, takeaways and debriefs are kept under Other. |
 | Oct 22 | Two local-only testing tools join the MVP: a voice-note watcher on `bee stream` (with a `Test:` rehearsal prefix the collector ignores, and `--collect` for end-to-end checks in about a minute) and a local review page on 127.0.0.1 (read-only first, then edits). The stream stays a testing probe because its delivery is at-most-once; the hosted review web app stays after Friday. |
+| Oct 22 | Voice commands need the product's name first: "Marty" (or "Martin"). In watcher testing, four notes not meant as commands were filed for real (two series, a debrief on a real session, an agenda item, then a session from an open start) and had to be undone by hand; with the name they'd have been plain notes. A "Marty, ..." note that doesn't parse is reported as "didn't understand" instead of silently dropped. The name is checked in Bee's raw text, because Bee's cleanup drops it. Also: "no session..." counts only in a short note (it caught "No session this week, it got cancelled"); the watcher reloads series after each collector run; `bee-agent` gets `dynamodb:DeleteItem` so the review page's edits work. |
