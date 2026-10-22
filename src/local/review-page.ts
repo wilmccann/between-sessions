@@ -6,8 +6,8 @@
 //   insights, read live, with what Marty did with each.
 // Text (summaries, note text, insight text) loads one row at a time when you
 // press "show" and lives only in the page.
-// Every render builds an array and passes [...].flat(2) to replaceChildren:
-// a nested array handed to replaceChildren would print as "[object ...]".
+// Every render builds an array and passes [...].flat(2), nulls dropped, to replaceChildren:
+// a nested array would print as "[object ...]", and a null as "null".
 // No template literals or backslashes in the script: this is a template
 // literal itself.
 export const PAGE = /* html */ `<!doctype html>
@@ -134,7 +134,7 @@ function textCell(key, type, id, source) {
   const button = el("button", { onclick: async () => {
     try {
       shownText.set(key, await fetchText(type, id, source));
-      out.replaceChildren(...[textBlock(shownText.get(key))].flat(2));
+      out.replaceChildren(...[textBlock(shownText.get(key))].flat(2).filter((x) => x != null));
       button.remove();
     } catch (err) { out.textContent = err.message; }
   } }, "show");
@@ -206,7 +206,7 @@ function renderSearchBar() {
     el("button", { onclick: runSearch }, "Search"),
     el("button", { onclick: clearSearch }, "Clear"),
     el("span", { class: "muted" }, "Exact words filters both tabs; Bee keyword and semantic ask Bee and list results on the Bee data tab."),
-  ].flat(2));
+  ].flat(2).filter((x) => x != null));
 }
 
 function renderSearchInfo() {
@@ -219,7 +219,7 @@ function renderSearchInfo() {
   else if (beeSearchOn()) parts = [MODE_NAMES[search.ran] + " " + quoted + ": " + search.rows.length + " results, listed on the Bee data tab" +
     (tab === "marty" ? "; sessions holding a result are highlighted here." : "."),
     search.cutShort ? " May be cut short (Bee returns 50 at most)." : null];
-  document.getElementById("searchinfo").replaceChildren(...[parts].flat(2));
+  document.getElementById("searchinfo").replaceChildren(...[parts].flat(2).filter((x) => x != null));
 }
 
 async function runSearch() {
@@ -258,7 +258,7 @@ function clearSearch() {
 // --- Tabs ----------------------------------------------------------------
 function renderTabs() {
   const button = (id, label) => el("button", { role: "tab", "aria-selected": String(tab === id), class: tab === id ? "tab active" : "tab", onclick: () => showTab(id) }, label);
-  document.getElementById("tabs").replaceChildren(...[button("marty", "Marty"), button("bee", "Bee data")].flat(2));
+  document.getElementById("tabs").replaceChildren(...[button("marty", "Marty"), button("bee", "Bee data")].flat(2).filter((x) => x != null));
   document.getElementById("marty-tab").hidden = tab !== "marty";
   document.getElementById("bee-tab").hidden = tab !== "bee";
 }
@@ -308,7 +308,7 @@ function renderFilters() {
     date("to", "To"),
     el("button", { onclick: () => { Object.assign(filters, { series: "", kind: "", status: "", from: "", to: "" }); renderFilters(); render(); } }, "Clear"),
     el("span", { class: "muted" }, "Kind applies to markers and voice notes; status to sessions and voice notes."),
-  ].flat(2));
+  ].flat(2).filter((x) => x != null));
 }
 
 // One button per lookup: copies the command; hover shows it.
@@ -365,7 +365,7 @@ function render() {
     table(["When", "Kind", "Status", "Series", "Reason", "Voice note", "Text", "Look up"],
       notes.map((n) => [[n.when, matched("note:" + n.journalId)], n.kind, n.status, n.series || "", n.reason || "", ids([n.journalId]),
         textCell("journal:" + n.journalId, "journal", n.journalId), lookups(n.lookups)])),
-  ].flat(2));
+  ].flat(2).filter((x) => x != null));
 }
 
 async function load() {
@@ -406,7 +406,7 @@ function renderBeeFilters() {
     el("button", { onclick: () => loadBee(true) }, "Refresh"),
     el("button", { onclick: showAll }, "Show all text"),
     el("span", { class: "muted", id: "bee-status" }),
-  ].flat(2));
+  ].flat(2).filter((x) => x != null));
 }
 
 // The rows on screen: Bee search results while a Bee search is on, else the
@@ -434,7 +434,7 @@ function renderBee() {
   if (!searching && (beeLoading || beeError || !bee)) {
     const message = beeLoading ? el("p", { class: "muted" }, "Loading Bee data (the first call can take about 20 s)...")
       : beeError ? el("p", { class: "error" }, "Couldn't read Bee data: " + beeError) : null;
-    document.getElementById("bee-app").replaceChildren(...[message].flat(2));
+    document.getElementById("bee-app").replaceChildren(...[message].flat(2).filter((x) => x != null));
     return;
   }
   const all = searching ? search.rows : bee.rows;
@@ -462,7 +462,7 @@ function renderBee() {
       r.hasText ? textCell(r.key, r.type, r.id, r.source) : el("span", { class: "muted" }, "(no text)"),
       lookups(r.lookups),
     ]))),
-  ].flat(2));
+  ].flat(2).filter((x) => x != null));
 }
 
 // Fetches the text of the rows on screen, one row at a time.

@@ -145,14 +145,14 @@ const rowWith = (e: FakeElement, text: string) => e.all((r) => r.tagName === "tr
 const bodyRows = (e: FakeElement) => e.all((r) => r.tagName === "tbody").flatMap((b) => b.children);
 
 describe("review page: script", () => {
-  it("serves HTML with no [object, and renders every section with [...].flat(2)", async () => {
+  it("serves HTML with no [object, and renders every section with [...].flat(2) minus nulls", async () => {
     const page = (await call(port, `/?token=${token}`)).body;
     assert.doesNotMatch(page, /\[object/);
     const script = scriptOf(page);
     const calls = script.match(/replaceChildren\(/g) ?? [];
     assert.ok(calls.length >= 9, String(calls.length));
     assert.equal((script.match(/replaceChildren\(\.\.\.\[/g) ?? []).length, calls.length);
-    assert.equal((script.match(/\]\.flat\(2\)\);/g) ?? []).length, calls.length);
+    assert.equal((script.match(/\]\.flat\(2\)\.filter\(\(x\) => x != null\)\);/g) ?? []).length, calls.length);
     for (const id of ["searchbar", "searchinfo", "tabs", "filters", "app", "bee-filters", "bee-app"]) {
       assert.ok(script.includes(`document.getElementById("${id}").replaceChildren(...[`), id);
     }
@@ -165,7 +165,7 @@ describe("review page: script", () => {
     assert.equal(byId("marty-tab").hidden, false);
     assert.equal(byId("bee-tab").hidden, true);
     // Agenda items are your own words and show; Bee's text doesn't.
-    assert.doesNotMatch(root.textContent, /\[object|undefined|Synthetic: (a plain|Marty|short|long)/);
+    assert.doesNotMatch(root.textContent, /\[object|undefined|\bnull\b|Synthetic: (a plain|Marty|short|long)/);
     const note = rowWith(byId("app"), "jrnl-synthetic-3333");
     assert.ok(note.textContent.includes("note"));
     await buttonIn(note, "show").fire("click");
@@ -186,7 +186,7 @@ describe("review page: script", () => {
     const app = byId("bee-app");
     for (const h of ["Type", "Id", "Created", "Updated", "Start and end", "State", "Marty", "Text", "Look up"]) assert.ok(app.all((e) => e.tagName === "th" && e.textContent === h).length, h);
     assert.equal(bodyRows(app).length, 13);
-    assert.doesNotMatch(app.textContent, /Synthetic:|\[object|undefined/);
+    assert.doesNotMatch(app.textContent, /Synthetic:|\[object|undefined|\bnull\b/);
     assert.ok(rowWith(app, "900111").textContent.includes("session: Coaching"));
     assert.ok(rowWith(app, "900666").textContent.includes("not captured"));
     assert.ok(rowWith(app, "900666").textContent.includes("(in progress)"));
@@ -223,7 +223,7 @@ describe("review page: script", () => {
     assert.ok(app.textContent.includes("Synthetic: Marty, start coaching session."));
     assert.ok(app.textContent.includes("Synthetic: short 900666"));
     assert.ok(!root.textContent.includes("Synthetic: short 900111"));
-    assert.doesNotMatch(root.textContent, /\[object|undefined/);
+    assert.doesNotMatch(root.textContent, /\[object|undefined|\bnull\b/);
   });
 
   it("searches: exact words filters both tabs; Bee semantic lists results and highlights sessions", async () => {
@@ -249,6 +249,7 @@ describe("review page: script", () => {
     mode.value = "neural";
     await q.fire("keydown", { key: "Enter" });
     await until(() => byId("searchinfo").textContent.includes("Bee semantic search"), "the semantic search");
+    assert.match(byId("searchinfo").textContent, /listed on the Bee data tab\.$/);
     const app = byId("bee-app");
     assert.ok(app.textContent.includes('Bee semantic search results for "when did I feel stretched?"'));
     const rows = bodyRows(app);
@@ -273,7 +274,7 @@ describe("review page: script", () => {
     assert.equal(byId("app").all((r) => r.tagName === "tr" && r.className === "hit").length, 0);
     await buttonIn(byId("tabs"), "Bee data").fire("click");
     assert.equal(bodyRows(byId("bee-app")).length, 13);
-    assert.doesNotMatch(root.textContent, /\[object|undefined/);
+    assert.doesNotMatch(root.textContent, /\[object|undefined|\bnull\b/);
   });
 
   it("reports a refused search", async () => {
