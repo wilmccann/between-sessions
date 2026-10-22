@@ -1,10 +1,11 @@
 // Review: guesses you confirm or correct. A retag moves the session (its
 // versions, takeaways and debriefs) in one transaction; "not a session"
-// deletes it, keeps your takeaways and debriefs on the session before, and
+// deletes it, keeps your takeaways and debriefs on the session before (or
+// under Other when there is none, so your words are never deleted), and
 // remembers its Bee ids so they're never suggested again. Every change is
 // read back, including what happened to the agenda.
 import type { Candidate } from "./detect.js";
-import type { Series } from "./series.js";
+import { OTHER_ID, otherSeries, type Series } from "./series.js";
 import { openAgenda } from "./store/agenda.js";
 import type { ReviewItem, SessionRef, SessionStore, SessionTag } from "./store/types.js";
 import { DAY, formatShort } from "./time.js";
@@ -117,11 +118,18 @@ export async function retag(
   const beforeOld = await openCount(store, ref.seriesId);
 
   if (to === "not-session") {
-    const keepOn = (await store.listSessions(ref.seriesId, 50)).find((v) => v.start < ref.start) ?? null;
-    const moved = await store.rejectSession(ref, keepOn && { seriesId: ref.seriesId, start: keepOn.start });
+    const before = (await store.listSessions(ref.seriesId, 50)).find((v) => v.start < ref.start);
+    // With no session before, your notes stay under Other at the same time.
+    const keepOn: SessionRef = before ? { seriesId: ref.seriesId, start: before.start } : { seriesId: OTHER_ID, start: ref.start };
+    const moved = await store.rejectSession(ref, keepOn);
     await store.updateMarkers([ref.start, end], null);
+    if (moved && !before && !series.some((s) => s.id === OTHER_ID)) await store.putSeries(otherSeries(series));
     const afterOld = await openCount(store, ref.seriesId);
-    const kept = moved ? ` Your ${plural(moved, "note")} from it moved to the session before.` : "";
+    const kept = !moved
+      ? ""
+      : before
+        ? ` Your ${plural(moved, "note")} from it moved to the session before.`
+        : ` Your ${plural(moved, "note")} from it ${moved === 1 ? "was" : "were"} kept under Other.`;
     return `Marked the ${nameOf(ref.seriesId)} session on ${when} as not a session.${agendaEffect(nameOf(ref.seriesId), beforeOld, afterOld)}${kept}`;
   }
 

@@ -206,7 +206,9 @@ export class TableStore implements SessionStore {
       strip<SessionVersion>(v).parts.forEach((p) => ids.add(p.id));
       ops.push({ delete: { PK: v.PK, SK: v.SK } });
     }
-    const attached = await this.attachmentOps(ref, keepOn);
+    // Rejecting an Other session with no session before keeps notes in place.
+    const inPlace = keepOn?.seriesId === ref.seriesId && keepOn.start === ref.start;
+    const attached = inPlace ? [] : await this.attachmentOps(ref, keepOn);
     ops.push(...attached);
     ops.push({ delete: { PK: pk(ref.seriesId), SK: `BRIEF#${ref.start}` } });
     for (const id of ids) {
@@ -214,7 +216,11 @@ export class TableStore implements SessionStore {
       ops.push({ put: { PK: CLAIMS, SK: claimSk(id), ...claim } });
     }
     await this.table.transact(onePerItem(ops));
-    return keepOn ? attached.filter((op) => "put" in op).length : 0;
+    if (!keepOn) return 0;
+    if (!inPlace) return attached.filter((op) => "put" in op).length;
+    let kept = 0;
+    for (const kind of ATTACHED) kept += (await this.table.query(pk(ref.seriesId), `${kind}${ref.start}#`)).length;
+    return kept;
   }
 
   async listReviewItems() {

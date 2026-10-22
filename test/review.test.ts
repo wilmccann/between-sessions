@@ -168,6 +168,19 @@ describe("review_sessions and retag_session", () => {
     await run(t("19:15", "2026-10-20"), [earlier, later]);
     assert.equal((await store.listSessions(therapy.id, 5)).length, 1);
   });
+
+  it("not a session with no session before keeps your notes under Other", async () => {
+    const only = talk(922, t("17:02", "2026-10-20"), t("17:55", "2026-10-20"));
+    await run(t("19:00", "2026-10-20"), [only]);
+    const start = (await store.getLatestSession(therapy.id))!.start;
+    await store.saveTakeaway(therapy.id, start, "Synthetic takeaway");
+    const out = await call("retag_session", { id: "last", notASession: true });
+    assert.match(out, /as not a session\..*Your 1 note from it was kept under Other\./);
+    assert.equal(await store.getLatestSession(therapy.id), null);
+    assert.equal((await store.listTakeaways(therapy.id, start)).length, 0);
+    assert.equal((await store.listTakeaways(other.id, start)).length, 1);
+    assert.ok((await store.listSeries()).some((s) => s.id === other.id));
+  });
 });
 
 describe("review by Bee button", () => {
