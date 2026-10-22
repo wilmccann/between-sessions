@@ -214,6 +214,74 @@ describe("review page: state", () => {
   });
 });
 
+describe("review page: edits", () => {
+  const post = (path: string, body: unknown, opts: { contentType?: string; token?: string } = {}) =>
+    call(port, path, { method: "POST", token: opts.token ?? token, body, contentType: opts.contentType });
+  const state = async () => (await call(port, "/api/state", { token })).json();
+  const sessionsOf = (s: { sessions: { seriesId: string; sessions: { id: string }[] }[] }, id: string) =>
+    s.sessions.find((g) => g.seriesId === id)!.sessions;
+
+  it("retag moves a session and its takeaway to another series", async () => {
+    const res = await post("/api/retag", { id: `other@${OTHER}`, series: "coaching" });
+    assert.equal(res.status, 200);
+    assert.match(res.json().readback, /^Moved the Wed, Oct 21, 2:00 PM session from Other to Coaching\./);
+    const s = await state();
+    assert.deepEqual(sessionsOf(s, "other"), []);
+    assert.equal(sessionsOf(s, "coaching")[0].id, `coaching@${OTHER}`);
+    assert.deepEqual((await store.listTakeaways(coaching.id, OTHER)).map((t) => t.text), ["Synthetic takeaway"]);
+    assert.deepEqual(await store.listTakeaways(other.id), []);
+    assert.equal(s.review.line, "1 session to review.");
+  });
+
+  it("not a session keeps your notes under Other", async () => {
+    await store.saveTakeaway(therapy.id, THERAPY, "Synthetic therapy takeaway", { createdAt: "2026-10-20T22:10:00.000Z" });
+    const res = await post("/api/retag", { id: `therapy@${THERAPY}`, notASession: true });
+    assert.equal(res.status, 200);
+    assert.match(res.json().readback, /^Marked the Weekly therapy session on .* as not a session\..* Your 1 note from it was kept under Other\.$/);
+    assert.deepEqual(sessionsOf(await state(), "therapy"), []);
+    assert.deepEqual((await store.listTakeaways(other.id, THERAPY)).map((t) => t.text), ["Synthetic therapy takeaway"]);
+  });
+
+  it("confirm changes the tag's status, and files a waiting guess", async () => {
+    const res = await post("/api/confirm", { id: `coaching@${COACHING}` });
+    assert.equal(res.status, 200);
+    assert.equal(res.json().readback, "Confirmed: the Thu, Oct 15, 4:02 PM session is Coaching.");
+    const tag = sessionsOf(await state(), "coaching").find((x) => x.id === `coaching@${COACHING}`) as unknown as { tag: SessionTag };
+    assert.deepEqual(tag.tag, { source: "you", confidence: "certain", status: "confirmed", reason: "You confirmed it" });
+
+    const guess = await post("/api/confirm", { id: `acme-interview@${ACME_GUESS}` });
+    assert.match(guess.json().readback, /^Filed the Mon, Oct 19, 11:00 AM conversation under Acme interview\./);
+    assert.equal((await state()).review.line, "1 session to review.");
+  });
+
+  it("remove closes an agenda item", async () => {
+    const res = await post("/api/agenda/remove", { series: "coaching", text: "Synthetic: bring up the trip" });
+    assert.equal(res.status, 200);
+    assert.equal(res.json().readback, "Removed: Synthetic: bring up the trip. You have 0 open items.");
+    const agenda = (await state()).agenda.find((g: { seriesId: string }) => g.seriesId === "coaching");
+    assert.deepEqual(agenda.items, []);
+    const again = await post("/api/agenda/remove", { series: "coaching", text: "Synthetic: bring up the trip" });
+    assert.equal(again.status, 400);
+    assert.match(again.json().error, /Nothing on your Coaching agenda matches/);
+  });
+
+  it("needs JSON, the token and the right host, and reports bad requests", async () => {
+    const body = { id: `coaching@${COACHING}` };
+    assert.equal((await post("/api/confirm", body, { contentType: "text/plain" })).status, 415);
+    assert.equal((await post("/api/confirm", "id=x", { contentType: "application/x-www-form-urlencoded" })).status, 415);
+    assert.equal((await post("/api/confirm", body, { token: "wrong" })).status, 401);
+    assert.equal((await call(port, "/api/confirm", { method: "POST", host: "evil.example", token, body })).status, 403);
+    assert.equal((await post("/api/confirm", "not json")).status, 400);
+    assert.equal((await post("/api/confirm", { id: "nonsense" })).status, 400);
+    assert.equal((await post("/api/retag", { id: `coaching@${COACHING}` })).status, 400);
+    assert.equal((await post("/api/retag", { id: 42, series: "coaching" })).status, 400);
+    assert.match((await post("/api/retag", { id: "therapy@2026-01-01T00:00:00.000Z", series: "coaching" })).json().error, /can't find/);
+    assert.equal((await call(port, "/api/retag", { token })).status, 404);
+    // Nothing changed.
+    assert.equal(sessionsOf(await state(), "coaching").length, 1);
+  });
+});
+
 describe("yarn review-ui", () => {
   it("starts on 127.0.0.1 and prints the URL with its token", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bs-review-ui-main-"));
@@ -247,3 +315,4 @@ describe("yarn review-ui", () => {
     }
   });
 });
+

@@ -3,13 +3,20 @@
 // on 127.0.0.1 only. Every request needs the right Host header (no DNS
 // rebinding) and the random token made at launch. Summaries stay out of the
 // page's state; one session's short summary loads only when you ask for it.
+// Edits (retag, not a session, confirm, remove an agenda item) run the same
+// code as the MCP tools and show the same read-back; they need JSON, so a
+// plain cross-site form can't send one.
 // Inline HTML, CSS and JS only: nothing is fetched from anywhere else.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { ZodError } from "zod";
 import { minutes } from "../mcp/tool.js";
+import removeAgendaItem from "../mcp/tools/remove-agenda-item.js";
+import retagSession from "../mcp/tools/retag-session.js";
 import reviewSessions from "../mcp/tools/review-sessions.js";
 import { parseRefId, refId } from "../review.js";
 import { defaultTimezone, hasSchedule, type Series } from "../series.js";
@@ -168,8 +175,57 @@ async function route(store: SessionStore, req: IncomingMessage, res: ServerRespo
     if (!summary) throw new HttpError(404, "No stored session with that id");
     return send(res, 200, summary);
   }
+  const edit = EDITS[path];
+  if (req.method === "POST" && edit) {
+    const body = await readJson(req);
+    let result: CallToolResult;
+    try {
+      result = await edit(store, body);
+    } catch (err) {
+      if (err instanceof HttpError) throw err;
+      if (err instanceof ZodError) throw new HttpError(400, "Invalid request");
+      throw err;
+    }
+    const first = result.content[0];
+    const text = first?.type === "text" ? first.text : "";
+    if (result.isError) throw new HttpError(400, text);
+    return send(res, 200, { readback: text });
+  }
   throw new HttpError(404, "Not found");
 }
+
+const MAX_BODY = 16 * 1024;
+
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) throw new HttpError(415, "Send JSON (Content-Type: application/json)");
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY) throw new HttpError(413, "Request too large");
+    chunks.push(chunk as Buffer);
+  }
+  try {
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (body && typeof body === "object" && !Array.isArray(body)) return body;
+  } catch {
+    // Falls through to the error below.
+  }
+  throw new HttpError(400, "Send a JSON object");
+}
+
+// The edits run the same code as the retag_session and remove_agenda_item
+// tools, and answer with the same read-back.
+type Edit = (store: SessionStore, body: Record<string, unknown>) => Promise<CallToolResult>;
+const EDITS: Record<string, Edit> = {
+  "/api/retag": (store, { id, series, notASession }) => retagSession.call({ id, series, notASession }, { store }),
+  "/api/confirm": (store, { id }) => {
+    const ref = typeof id === "string" ? parseRefId(id) : null;
+    if (!ref) throw new HttpError(400, "Send the session id to confirm");
+    return retagSession.call({ id, series: ref.seriesId }, { store });
+  },
+  "/api/agenda/remove": (store, { series, text }) => removeAgendaItem.call({ series, text }, { store }),
+};
 
 const PAGE = /* html */ `<!doctype html>
 <html lang="en">
@@ -247,9 +303,31 @@ function summaryButton(id) {
 
 const tagText = (t) => t ? [t.source + ", " + t.confidence + ", ", el("span", { class: t.status === "pending" ? "pending" : "" }, t.status), el("div", { class: "muted" }, t.reason)] : el("span", { class: "muted" }, "untagged");
 
-function sessionActions() { return null; }
-function reviewActions() { return null; }
-function agendaActions() { return null; }
+async function edit(path, body) {
+  try { showReadback((await api(path, body)).readback, false); }
+  catch (err) { showReadback(err.message, true); }
+  await load();
+}
+
+// Move to another series, confirm the current one, or say it wasn't a session.
+function retagControls(id, currentSeriesId, confirmed) {
+  const select = el("select", { "aria-label": "Move to series" },
+    state.series.filter((x) => x.id !== currentSeriesId).map((x) => el("option", { value: x.id }, x.name)));
+  return el("span", {},
+    select,
+    el("button", { onclick: () => edit("/api/retag", { id, series: select.value }) }, "Move"),
+    confirmed ? null : el("button", { onclick: () => edit("/api/confirm", { id }) }, "Confirm"),
+    el("button", { onclick: () => {
+      if (confirm("Mark this as not a session? Its stored summaries are deleted; your notes are kept.")) edit("/api/retag", { id, notASession: true });
+    } }, "Not a session"),
+  );
+}
+
+function sessionActions(x, g) { return retagControls(x.id, g.seriesId, x.tag && x.tag.status === "confirmed"); }
+function reviewActions(r) { return retagControls(r.id, r.id.slice(0, r.id.lastIndexOf("@")), false); }
+function agendaActions(i, g) {
+  return el("button", { onclick: () => edit("/api/agenda/remove", { series: g.seriesId, text: i.text }) }, "Remove");
+}
 
 function render() {
   const s = state;
