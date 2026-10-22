@@ -6,7 +6,11 @@
 // Edits (retag, not a session, confirm, remove an agenda item) run the same
 // code as the MCP tools and show the same read-back; they need JSON, so a
 // plain cross-site form can't send one.
-// Inline HTML, CSS and JS only: nothing is fetched from anywhere else.
+// The Bee data tab (/api/bee) reads Bee live through the CLI and keeps text
+// in memory only, one row at a time through /api/bee/text; /api/search
+// searches on the server (see search.ts).
+// Inline HTML, CSS and JS only (review-page.ts): nothing is fetched from
+// anywhere else.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -28,6 +32,7 @@ import type { SessionStore } from "../store/types.js";
 import { DAY, formatShort } from "../time.js";
 import { BeeCliError, BeeData, DEFAULT_DAYS, MAX_DAYS } from "./bee-data.js";
 import { beeConversation, beeJournal, dynamoGet, dynamoQuery, type Lookup } from "./lookups.js";
+import { PAGE } from "./review-page.js";
 import { exactSearch, keywordSearch, MAX_QUERY, neuralSearch } from "./search.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -306,215 +311,6 @@ const EDITS: Record<string, Edit> = {
   "/api/agenda/remove": (store, { series, text }) => removeAgendaItem.call({ series, text }, { store }),
 };
 
-const PAGE = /* html */ `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Between Sessions: review</title>
-<style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; font-size: 14px; }
-  body { margin: 1.5rem; max-width: 72rem; }
-  h1 { font-size: 1.3rem; } h2 { font-size: 1.1rem; margin-top: 2rem; } h3 { font-size: 1rem; margin-bottom: .3rem; }
-  table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
-  th, td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid #8884; vertical-align: top; }
-  th { font-weight: 600; }
-  .muted { opacity: .65; }
-  .pending { color: #b5651d; font-weight: 600; }
-  .summary { white-space: pre-wrap; font-size: .9em; }
-  #readback { padding: .6rem .8rem; border: 1px solid #8886; border-radius: 6px; display: none; margin-bottom: 1rem; }
-  #readback.error { border-color: #c33; }
-  #filters { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: end; padding: .6rem .8rem; border: 1px solid #8884; border-radius: 6px; }
-  #filters label { display: flex; flex-direction: column; font-size: .85em; gap: .15rem; }
-  .ids { font-family: ui-monospace, monospace; font-size: .85em; word-break: break-all; }
-  .lookup { font-size: .85em; }
-  button, select { font: inherit; margin-right: .3rem; }
-</style>
-</head>
-<body>
-<h1>Between Sessions: review</h1>
-<p class="muted">Local only (127.0.0.1). Summaries stay hidden unless you press "show".</p>
-<div id="readback" role="status"></div>
-<div id="filters"></div>
-<div id="app">Loading...</div>
-<script>
-"use strict";
-const token = new URLSearchParams(location.search).get("token") || "";
-let state = null;
-
-async function api(path, body) {
-  const init = body === undefined
-    ? { headers: { "X-Review-Token": token } }
-    : { method: "POST", headers: { "X-Review-Token": token, "Content-Type": "application/json" }, body: JSON.stringify(body) };
-  const res = await fetch(path, init);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
-  return data;
-}
-
-function el(tag, props, ...kids) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
-    else if (k === "class") e.className = v;
-    else e.setAttribute(k, v);
-  }
-  for (const c of kids.flat()) if (c !== null && c !== undefined) e.append(c instanceof Node ? c : String(c));
-  return e;
-}
-
-function table(headers, rows) {
-  if (!rows.length) return el("p", { class: "muted" }, "None.");
-  return el("table", {}, el("thead", {}, el("tr", {}, headers.map((h) => el("th", {}, h)))),
-    el("tbody", {}, rows.map((r) => el("tr", {}, r.map((c) => el("td", {}, c))))));
-}
-
-function showReadback(text, isError) {
-  const box = document.getElementById("readback");
-  box.textContent = text;
-  box.className = isError ? "error" : "";
-  box.style.display = "block";
-}
-
-function summaryButton(id) {
-  const out = el("div", { class: "summary" });
-  const button = el("button", { onclick: async () => {
-    try { out.textContent = (await api("/api/summary?id=" + encodeURIComponent(id))).shortSummary || "(no summary)"; button.remove(); }
-    catch (err) { out.textContent = err.message; }
-  } }, "show");
-  return el("span", {}, button, out);
-}
-
-const tagText = (t) => t ? [t.source + ", " + t.confidence + ", ", el("span", { class: t.status === "pending" ? "pending" : "" }, t.status), el("div", { class: "muted" }, t.reason)] : el("span", { class: "muted" }, "untagged");
-
-async function edit(path, body) {
-  try { showReadback((await api(path, body)).readback, false); }
-  catch (err) { showReadback(err.message, true); }
-  await load();
-}
-
-// Move to another series, confirm the current one, or say it wasn't a session.
-function retagControls(id, currentSeriesId, confirmed) {
-  // Starts on a blank choice, so a stray click on Move does nothing.
-  const select = el("select", { "aria-label": "Move to series" }, el("option", { value: "" }, "Move to..."),
-    state.series.filter((x) => x.id !== currentSeriesId).map((x) => el("option", { value: x.id }, x.name)));
-  return el("span", {},
-    select,
-    el("button", { onclick: () => { if (select.value) edit("/api/retag", { id, series: select.value }); } }, "Move"),
-    confirmed ? null : el("button", { onclick: () => edit("/api/confirm", { id }) }, "Confirm"),
-    el("button", { onclick: () => {
-      if (confirm("Mark this as not a session? Its stored summaries are deleted; your notes are kept.")) edit("/api/retag", { id, notASession: true });
-    } }, "Not a session"),
-  );
-}
-
-function sessionActions(x, g) { return retagControls(x.id, g.seriesId, x.tag && x.tag.status === "confirmed"); }
-function reviewActions(r) { return retagControls(r.id, r.id.slice(0, r.id.lastIndexOf("@")), false); }
-function agendaActions(i, g) {
-  return el("button", { onclick: () => edit("/api/agenda/remove", { series: g.seriesId, text: i.text }) }, "Remove");
-}
-
-// Filters apply to the sections that have the field: kind to markers and
-// voice notes, status to sessions (their tag) and voice notes.
-const filters = { series: "", kind: "", status: "", from: "", to: "" };
-const dayStart = (d) => new Date(d + "T00:00").getTime();
-function keep(row, fields) {
-  if (filters.series && fields.series !== undefined && (fields.series || "(none)") !== filters.series) return false;
-  if (filters.kind && fields.kind !== undefined && fields.kind !== filters.kind) return false;
-  if (filters.status && fields.status !== undefined && fields.status !== filters.status) return false;
-  const t = row.at ? Date.parse(row.at) : NaN;
-  if (filters.from && !(t >= dayStart(filters.from))) return false;
-  if (filters.to && !(t < dayStart(filters.to) + 86400000)) return false;
-  return true;
-}
-
-function renderFilters() {
-  const s = state;
-  const distinct = (xs) => [...new Set(xs.filter(Boolean))].sort();
-  const kinds = distinct([...s.markers, ...s.voiceNotes].map((r) => r.kind));
-  const statuses = distinct([...s.voiceNotes.map((n) => n.status), ...s.sessions.flatMap((g) => g.sessions.map((x) => x.tag ? x.tag.status : "untagged"))]);
-  const choose = (key, label, options) => {
-    const select = el("select", { onchange: () => { filters[key] = select.value; render(); } },
-      el("option", { value: "" }, "All"), options.map(([v, text]) => el("option", { value: v }, text)));
-    select.value = filters[key];
-    return el("label", {}, label, select);
-  };
-  const date = (key, label) => {
-    const input = el("input", { type: "date", value: filters[key], onchange: () => { filters[key] = input.value; render(); } });
-    return el("label", {}, label, input);
-  };
-  document.getElementById("filters").replaceChildren(
-    choose("series", "Series", [...s.series.map((x) => [x.id, x.name]), ["(none)", "None named"]]),
-    choose("kind", "Kind", kinds.map((k) => [k, k])),
-    choose("status", "Status", statuses.map((k) => [k, k])),
-    date("from", "From"),
-    date("to", "To"),
-    el("button", { onclick: () => { Object.assign(filters, { series: "", kind: "", status: "", from: "", to: "" }); renderFilters(); render(); } }, "Clear"),
-    el("span", { class: "muted" }, "Kind applies to markers and voice notes; status to sessions and voice notes."),
-  );
-}
-
-// One button per lookup: copies the command; hover shows it.
-function lookups(list) {
-  return el("span", { class: "lookup" }, (list || []).map((l) => {
-    const b = el("button", { title: l.command, onclick: async () => {
-      try { await navigator.clipboard.writeText(l.command); b.textContent = "copied"; setTimeout(() => { b.textContent = l.label; }, 1200); }
-      catch { window.prompt("Copy this command:", l.command); }
-    } }, l.label);
-    return b;
-  }));
-}
-
-const ids = (xs) => el("span", { class: "ids" }, xs.join(", "));
-const shown = (title, all, rows) => el("h2", {}, title, all.length ? el("span", { class: "muted" }, " (" + rows.length + " of " + all.length + ")") : null);
-
-function render() {
-  const s = state;
-  const app = document.getElementById("app");
-  const review = s.review.sessions.filter((r) => keep(r, { series: r.seriesId }));
-  const markers = s.markers.filter((m) => keep(m, { series: m.seriesId, kind: m.kind }));
-  const notes = s.voiceNotes.filter((n) => keep(n, { series: n.seriesId, kind: n.kind, status: n.status }));
-  const bySeries = (g) => !filters.series || filters.series === g.seriesId;
-  const sessions = s.sessions.filter(bySeries).map((g) => ({ ...g, rows: g.sessions.filter((x) => keep(x, { status: x.tag ? x.tag.status : "untagged" })) }));
-  const agenda = s.agenda.filter(bySeries).map((g) => ({ ...g, rows: g.items.filter((i) => keep(i, {})) }));
-  const allSessions = s.sessions.flatMap((g) => g.sessions);
-  const allAgenda = s.agenda.flatMap((g) => g.items);
-  // The per-series sections are nested arrays; replaceChildren would print them as text.
-  app.replaceChildren(...[
-    shown("Review queue", s.review.sessions, review),
-    el("p", {}, s.review.line || "Nothing to review."),
-    table(["Id", "When", "Minutes", "Guess", "Filed", "Reason", "Bee ids", "Expires in", "Look up", ""],
-      review.map((r) => [el("code", {}, r.id), r.when, r.durationMinutes, r.guess, r.filed ? "yes" : "no", r.reason, ids(r.beeIds), r.expiresInDays + " days", lookups(r.lookups), reviewActions(r)])),
-    el("h2", {}, "Series"),
-    table(["Id", "Name", "Schedule", "Spoken names"], s.series.map((x) => [el("code", {}, x.id), x.name, x.schedule, x.spokenNames.join(", ")])),
-    shown("Sessions", allSessions, sessions.flatMap((g) => g.rows)),
-    sessions.map((g) => [
-      el("h3", {}, g.series),
-      table(["When", "Minutes", "Parts", "Bee ids", "Tag", "Summary", "Look up", ""],
-        g.rows.map((x) => [x.when, x.minutes, x.parts, ids(x.beeIds), tagText(x.tag), summaryButton(x.id), lookups(x.lookups), sessionActions(x, g)])),
-    ]),
-    shown("Open agenda", allAgenda, agenda.flatMap((g) => g.rows)),
-    agenda.map((g) => [
-      el("h3", {}, g.series),
-      table(["Item", "From", "Added", "Look up", ""], g.rows.map((i) => [i.text, i.source, i.added, lookups(i.lookups), agendaActions(i, g)])),
-    ]),
-    shown("Markers", s.markers, markers),
-    table(["When", "Kind", "Series", "Voice note", "Look up"], markers.map((m) => [m.when, m.kind, m.series, ids([m.journalId]), lookups(m.lookups)])),
-    shown("Voice notes", s.voiceNotes, notes),
-    table(["When", "Kind", "Status", "Series", "Reason", "Voice note", "Look up"],
-      notes.map((n) => [n.when, n.kind, n.status, n.series || "", n.reason || "", ids([n.journalId]), lookups(n.lookups)])),
-  ].flat(2));
-}
-
-async function load() {
-  try { state = await api("/api/state"); renderFilters(); render(); }
-  catch (err) { document.getElementById("app").textContent = "Couldn't load: " + err.message; }
-}
-load();
-</script>
-</body>
-</html>
-`;
 
 async function main() {
   const args = process.argv.slice(2);
