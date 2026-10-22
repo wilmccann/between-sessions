@@ -15,11 +15,11 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [x] Scripts: `brief`, `check:remote`, `seed`, `try-notes`; 39 tests pass. MIT LICENSE.
 
 **Left to build, MVP (in priority order):**
-- [ ] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
-- [ ] [Since-last-session digest](#2-since-last-session-digest-the-time-between-sessions): `get_since_last_session`.
+- [x] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
+- [x] [Since-last-session digest](#2-since-last-session-digest-the-time-between-sessions): `get_since_last_session`.
 - [ ] [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp): start and end markers, voice-note commands (debrief, agenda, takeaway), marked ad-hoc sessions, `remove_agenda_item`. Device tests A and C (Oct 21 evening) and D (Thu Oct 22, 4pm).
-- [ ] [Session tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp): tags with best guesses, the review queue, `review_sessions` and `retag_session`, the brief's review line, Bee button retag commands.
-- [ ] [When is my next session](#small-addition-when-is-my-next-session).
+- [x] [Session tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp): tags with best guesses, the review queue, `review_sessions` and `retag_session`, the brief's review line, Bee button retag commands.
+- [x] [When is my next session](#small-addition-when-is-my-next-session).
 
 **Conditional:**
 - [ ] [Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen), if Nova 2 Lite answers by Thu Oct 22, 1pm ET.
@@ -28,7 +28,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [ ] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack.
 
 **Submission (by Fri Oct 23, 12:00pm PDT):**
-- [ ] README updated for the new capabilities.
+- [x] README updated for the new capabilities.
 - [ ] Demo video under 3 minutes.
 - [ ] Product feedback, and the friction log ([FRICTION_LOG.md](FRICTION_LOG.md)) brought up to date.
 - [ ] Push the public repo (only when the user says so).

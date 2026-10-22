@@ -2,7 +2,7 @@
 
 A companion for recurring 1:1 sessions (therapy, coaching, mentoring, interview loops) built on data from a [Bee](https://docs.bee.computer/docs) wearable.
 
-Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" After a session it saves what Bee captured before the summaries get rewritten, and keeps the takeaways you mark.
+Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" Between sessions it says what has happened since: how many days and conversations, which topics from last time came up again, Bee's insights and new todos. After a session it saves what Bee captured before the summaries get rewritten, and keeps your takeaways and debrief. The Bee's own button is an input: hold it and say "Start session", "End session", "Debrief: ...", "Agenda: ..." or "Takeaway: ...", and the next brief confirms what was filed.
 
 > Status: built for the Build, Ship, Shape: Amazon Developer Hackathon (Bee track). The collector, the session store and the remote MCP server run on AWS; the Bedrock notes are built and ship switched off.
 
@@ -14,7 +14,7 @@ flowchart LR
   subgraph aws[Your AWS account]
     sched[EventBridge Scheduler<br/>every 15 min] --> collector[Collector Lambda<br/>runs the Bee CLI]
     secret[(Secrets Manager<br/>Bee CLI login)] <--> collector
-    collector --> table[(DynamoDB<br/>sessions, agenda,<br/>takeaways, briefs)]
+    collector --> table[(DynamoDB<br/>sessions, agenda, takeaways,<br/>debriefs, digests, review)]
     collector -. optional .-> bedrock[Amazon Bedrock<br/>notes and briefs]
     table --> mcp[MCP Lambda<br/>Streamable HTTP]
     apigw[API Gateway<br/>HTTP API, POST /mcp] --> mcp
@@ -23,32 +23,74 @@ flowchart LR
   clients[Claude Code, Alexa skill bridge,<br/>any MCP client] -->|Bearer token| apigw
 ```
 
-- **Collector Lambda** (`src/aws/collector.ts`): Node 22 on arm64. It ships the Bee CLI's Linux binary from `@beeai/cli`, restores a file-store CLI login from Secrets Manager into `/tmp`, runs `bee conversations list --json` and `bee insights list --json`, and saves the login back if the CLI refreshed its token.
-- **DynamoDB** (`between-sessions`): one table, keys `PK = SERIES#<id>` and `SK = CONFIG | LATEST#SESSION | SESSION#<start>#V#<collectedAt> | AGENDA#... | TAKEAWAY#... | BRIEF#...`.
+- **Collector Lambda** (`src/aws/collector.ts`, one run in `src/collector.ts`): Node 22 on arm64. It ships the Bee CLI's Linux binary from `@beeai/cli`, restores a file-store CLI login from Secrets Manager into `/tmp`, runs `bee conversations list`, `bee insights list`, `bee journals list` and `bee todos list` (all `--json`), and saves the login back if the CLI refreshed its token. Each run reads new Bee button notes, places sessions, files notes, updates the review queue and precomputes one digest per series.
+- **DynamoDB** (`between-sessions`): one table. Per series, `PK = SERIES#<id>` with `SK = CONFIG | SESSION#<start>#V#<collectedAt> | AGENDA#... | TAKEAWAY#... | DEBRIEF#... | BRIEF#... | DIGEST`. Shared partitions: `CLAIMS` (which session holds each Bee conversation id), `MARKERS` (Bee button start and end times), `JOURNALS` (what each voice note did, no text), `TALLIES` (running day counts) and `REVIEW` (guesses waiting for you). The table is retained if the stack is deleted, with deletion protection on.
 - **MCP Lambda** (`src/aws/mcp-handler.ts`): a stateless Streamable HTTP server with JSON responses. Tools answer from DynamoDB only, with no Bee or Bedrock calls on the request path.
 - **Bedrock** (`src/notes/bedrock.ts`): when enabled, one Converse call per new session version writes a short session note and a prep brief.
 - Everything is one CDK stack, `BetweenSessions` (`infra/stack.ts`), in `us-east-1`.
 
 ## How it uses Bee data
 
-- **Read**: the last 21 days of conversations and insights, through the Bee CLI (`@beeai/cli`), every 15 minutes.
-- **Session matching**: each *series* (for example "weekly coaching") has a schedule rule: a weekday and the local time the session usually runs. Bee can split one session into several conversations, so every conversation that overlaps that window by at least `minOverlapMinutes` becomes part of the session, as long as the parts add up to `minDurationMinutes`. Bee writes insights in nightly batches that repeat themes from earlier nights, so only the first batch after the session (within `insightWindowHours`) is attached.
-- **Stored**: only matched sessions (each part's summary and short summary, times and ids) and their first insight batch, plus your own agenda items, takeaways and prep briefs. Bee rewrites summaries over time, so a new version is stored whenever the content changes, and the wording from right after the session is kept.
-- **Not stored**: other conversations, raw utterances, transcripts or audio. Lambda logs hold counts, durations and ids only.
+- **Read**: the last 21 days of conversations, insights, voice notes (journals) and todos, through the Bee CLI (`@beeai/cli`), every 15 minutes.
+- **Finding sessions**, strongest evidence first, each Bee conversation in at most one session:
+  1. **You**: a session you confirmed or retagged.
+  2. **Bee button markers**: "Start session" and "End session" voice notes give the exact span; the session is built from the conversations that overlap it. A start with no end closes at the end of the run of back-to-back conversations after it (at most `maxSessionMinutes`); an end with no start opens at the start of the run before it.
+  3. **The schedule window** (optional per series): conversations that overlap the weekly slot by at least `minOverlapMinutes`, adding up to `minDurationMinutes`.
+  4. **A series keyword**: a conversation of 30 minutes or more whose Bee summary mentions one of the series' `captureKeywords`.
+- **Tags and review**: every session carries a tag (source, confidence, status, a short reason). A named marker, or the slot plus a series keyword in Bee's summary, is filed. A slot alone (for a series with keywords) or a keyword alone is queued for review and not filed; an unnamed marker is filed under its best guess and queued. A queued guess stores only its time, length, Bee ids and reason, never a summary, and must be reviewed within Bee's 14-day history. A rejected conversation's id is remembered so it's never suggested again.
+- **Insights**: Bee writes insights in nightly batches that repeat themes from earlier nights, so only the first batch after the session (within `insightWindowHours`) is attached.
+- **Digest**: the collector keeps running day tallies (conversation ids and times, todo ids and times, and which conversations mention each topic word) so a gap of more than 14 days still counts. Topics are words that recur in the last session's summaries plus `captureKeywords`. The digest is off for the catch-all Other series.
+- **Stored**: sessions (each part's summary and short summary, times and ids) and their first insight batch, your agenda items, takeaways, debriefs and prep briefs, marker times, the day tallies and the review queue. Bee rewrites summaries over time, so a new version is stored whenever the content changes, and the wording from right after the session is kept. From voice notes, only the words after a recognized command ("Agenda: the work trip" stores "the work trip"); any other note is kept as its id only. Sessions you mark with the Bee button (an interview, a one-off) are kept like recurring ones, but only for conversations you marked.
+- **Not stored**: other conversations' summaries, raw utterances, transcripts, audio, locations or calendar data. Lambda logs hold counts, durations and ids only.
 - **Tokens**: the Bee login and the MCP token live only in Secrets Manager (or a git-ignored `.env` locally).
 
 ## MCP tools
 
 | Tool | What it does |
 |---|---|
-| `get_last_session {series?}` | The latest session: date, duration, parts, Bee's summary, the insights after it, version count and when it was collected |
-| `list_sessions {series?, limit?}` | Recent sessions, newest first: dates, durations, part and version counts, no summaries |
+| `get_prep_brief {series?}` | What the Bee button filed lately, the review line, the since-last-session paragraph, the last session (short summary, insight titles, your takeaways and debrief), the open agenda, and when the next session is ("not scheduled" without a schedule). Uses the Bedrock note when there is one |
+| `get_since_last_session {series?}` | Days and conversations since the last session, topics from it that came up again, Bee's insight titles since, and todos added. Counts and topic words only |
+| `get_last_session {series?}` | The latest session: date, duration, how it was found, parts, Bee's summary, your debrief, the insights after it, version count and when it was collected |
+| `list_sessions {series?, limit?}` | Recent sessions, newest first: ids, dates, durations, how each was found, part and version counts, no summaries |
 | `add_agenda_item {series?, text}` | Something to bring up next time; it stays open until the next session starts |
-| `list_agenda {series?}` | Open agenda items, oldest first |
+| `list_agenda {series?}` | Open agenda items, oldest first, each marked as from you or from the Bee button |
+| `remove_agenda_item {series?, text}` | Takes an open item off the agenda, matched by its words |
 | `save_takeaway {series?, text}` | Your own takeaway, filed under the latest session |
-| `get_prep_brief {series?}` | The Bedrock brief if there is one, otherwise one assembled from the store: last session, short summary, insight titles, takeaways and open agenda |
+| `review_sessions {}` | Guesses waiting for you: date, time, length, the guessed series, why, and when Bee's history drops it. No summaries |
+| `retag_session {id, series?, notASession?}` | Confirms or corrects a guess or a filed session, or drops it; reads back what changed, including agenda effects |
+| `help {}` | The menu, short enough to read aloud, and what's out of scope |
+
+When a request names no series, the tools use the only series, or the most recently ended session's series (looking back, takeaways) or the next scheduled one's (prep, agenda), say which, and ask when it's unclear. Series names are fuzzy-matched ("Akme" finds "Acme interview").
+
+The server also sends instructions (the menu and answer rules) on connect, adds one suggested next step to every answer, and offers prompts for `/` in Claude Code: `prep`, `since`, `agenda`, `takeaway`, `review` and `help`. All of these come from one capability list, `src/mcp/capabilities.ts`.
 
 Descriptions are written to be read aloud, for voice use through an Alexa skill bridge such as [alexa-skill-mcp-bridge](https://github.com/KayLerch/alexa-skill-mcp-bridge).
+
+## The Bee button
+
+In the Bee app, set the Action Button's "Hold and speak" to **Voice Notes** (not Voice Assistant): each hold-and-speak becomes a Bee journal, which the CLI can read. Optionally set double press to "Process current conversation", so pressing it at the end of a session makes Bee finish that conversation sooner. Then hold the button and say:
+
+| You say | What happens |
+|---|---|
+| "Start session" or "Start coaching" | Marks a session's start at the time of the note |
+| "Start session: Acme interview" | Marks the start of a session in that series, creating it (with no schedule) if it's new |
+| "End session" | Marks the end; the session is built from the conversations in between |
+| "Debrief: ..." | Saves your debrief on the session that just ended |
+| "Agenda: ..." or "For therapy: ..." | Adds an agenda item for the next session, marked "from Bee" |
+| "Takeaway: ..." | Saves a takeaway on the session that just ended |
+| "Drop ... from my agenda" | Removes an open agenda item |
+| "That was Acme", "Retag: coaching", "Not a session" | Corrects the session that just happened |
+
+Command words are matched forgivingly ("and session" counts as "end session"). The button gives no feedback and Bee takes a few minutes to transcribe a note, so the next brief or digest opens with what was filed, for example "Got it: session ended Thu 4:32 PM, debrief saved, 1 agenda item added", and reports any note that started like a command but couldn't be filed. An unnamed start with several series goes to the series whose slot it falls in, or to the catch-all Other series, and waits for review.
+
+## Series config
+
+`series.example.json` is synthetic. Each series has an `id`, a `name` and a `timezone`, and optionally:
+
+- `weekday` (0 is Sunday), `windowStart` and `windowEnd` (local `HH:MM`): the schedule. All three or none; a series without them gets its sessions from markers (and keywords) only.
+- `spokenNames`: other names you might say, for example `["coaching"]` for "Weekly coaching".
+- `captureKeywords`: words in Bee's summaries that point at the series. With them, a slot alone no longer files a session (the coaching slot in an off week waits for review instead).
+- `minOverlapMinutes` (10), `minDurationMinutes` (30), `maxSessionMinutes` (120) and `insightWindowHours` (72).
 
 ## Deploy to AWS
 
@@ -73,6 +115,8 @@ aws lambda invoke --function-name between-sessions-collector out.json && cat out
 ```
 
 The response holds counts only, for example `{"conversations":80,"insights":90,"series":1,"matched":3,"written":3,...}`.
+
+Seeding is optional: a "Start session: <name>" voice note creates an unscheduled series by itself.
 
 ### Connect Claude Code
 
@@ -107,7 +151,7 @@ For one person, a few dollars a month at most:
 - DynamoDB on demand, the HTTP API and CloudWatch Logs: cents at this volume.
 - Bedrock, if enabled: one short Converse call per new session version, typically well under a few cents each.
 
-`cdk destroy BetweenSessions` removes everything, including the table, except the Bee login secret, which `scripts/setup-bee-secret.sh` created.
+`cdk destroy BetweenSessions` removes everything except the table and the Bee login secret (which `scripts/setup-bee-secret.sh` created). The table is retained with deletion protection on, because stored sessions outlive Bee's 14-day history and can't be rebuilt; to delete it, turn deletion protection off in the DynamoDB console and delete it there.
 
 ### Cost guardrails (optional)
 
@@ -145,7 +189,7 @@ corepack yarn test                         # tests run on synthetic data only
 
 ## Privacy
 
-This handles sensitive personal data. Everything runs in your own AWS account. Tokens live only in Secrets Manager or local environment files and are never committed. Bee exports (`bee-sync/`), local snapshots and `series.local.json` are git-ignored, and the table is deleted with the stack.
+This handles sensitive personal data. Everything runs in your own AWS account. Tokens live only in Secrets Manager or local environment files and are never committed. Bee exports (`bee-sync/`), local snapshots and `series.local.json` are git-ignored. The table is kept if the stack is deleted (see Cost); delete it yourself when you're done. Tests and fixtures use synthetic data only.
 
 ## License
 
