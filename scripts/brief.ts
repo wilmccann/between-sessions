@@ -55,18 +55,26 @@ const b = JSON.parse(first.text) as PrepBriefView;
 const list = (items: string[]) => (items.length ? items.map((i) => `  - ${i}`).join("\n") : "  (none)");
 
 if (shape) {
-  console.log(`source: ${b.source}, last session: ${b.lastSessionLocal ?? "none"}`);
+  console.log(`source: ${b.source}, last session: ${b.lastSessionLocal ?? "none"}, next: ${b.nextSessionAt ?? "not scheduled"}`);
   console.log(`short summary ${b.shortSummary?.length ?? 0} chars, note ${b.note?.length ?? 0} chars`);
   console.log(
-    `bullets ${b.bullets.length}, insights ${b.insightTitles.length}, agenda ${b.openAgenda.length}, takeaways ${b.takeaways.length}`,
+    `bullets ${b.bullets.length}, insights ${b.insightTitles.length}, agenda ${b.openAgenda.length}, takeaways ${b.takeaways.length}, debriefs ${b.debriefs.length}`,
+  );
+  console.log(
+    `from Bee ${b.fromBee?.length ?? 0} chars, review ${b.review?.length ?? 0} chars, since last session ${b.sinceLastSession?.length ?? 0} chars`,
   );
 } else {
   console.log(`Prep brief: ${b.series} (${b.source})\n`);
+  if (b.fromBee) console.log(`${b.fromBee}\n`);
+  if (b.review) console.log(`${b.review}\n`);
   console.log(`Last session: ${b.lastSessionLocal ?? "none yet"}`);
+  console.log(`Next session: ${b.nextSession}`);
+  if (b.sinceLastSession) console.log(`\nSince then: ${b.sinceLastSession}`);
   if (b.shortSummary) console.log(`\n${b.shortSummary}`);
   if (b.note) console.log(`\n${b.note}`);
   if (b.bullets.length) console.log(`\nTo bring up:\n${list(b.bullets)}`);
   console.log(`\nBee's insights after it:\n${list(b.insightTitles)}`);
   console.log(`\nYour takeaways:\n${list(b.takeaways)}`);
+  if (b.debriefs.length) console.log(`\nYour debrief:\n${list(b.debriefs)}`);
   console.log(`\nOpen agenda:\n${list(b.openAgenda)}`);
 }

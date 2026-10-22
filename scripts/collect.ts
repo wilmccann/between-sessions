@@ -17,3 +17,8 @@ console.log(
     `matched ${result.matched} sessions in ${result.series} series; ` +
     `stored ${result.written.length} new versions in ${((Date.now() - started) / 1000).toFixed(1)}s`,
 );
+const b = result.button;
+console.log(
+  `Bee button: ${b.notes} new notes, ${b.markers} markers, ${b.filed} filed, ${b.unfiled} unfiled, ` +
+    `${b.waiting} waiting, ${b.seriesCreated} series created; ${result.review} to review; ${result.digests} digests`,
+);
