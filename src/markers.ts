@@ -7,7 +7,8 @@
 import type { BeeConversation } from "./bee/cli.js";
 import type { Candidate } from "./detect.js";
 import { scheduleReason } from "./detect.js";
-import { hasSchedule, OTHER_ID, type Series } from "./series.js";
+import { OTHER_ID, type Series } from "./series.js";
+import { isoDate, slotsOn, type Slot } from "./slots.js";
 import type { Marker, SessionTag } from "./store/types.js";
 import { localParts, MINUTE, toMinutes } from "./time.js";
 
@@ -18,11 +19,13 @@ const SLOT_EARLY = 30 * MINUTE;
 
 const ms = (iso: string) => Date.parse(iso);
 
-function inSlot(s: Series, at: number): boolean {
-  if (!hasSchedule(s)) return false;
+// The series' slot (weekly or dated) that `at` falls in, local time on its
+// own date, counting SLOT_EARLY before the start.
+function slotAt(s: Series, at: number): Slot | undefined {
   const p = localParts(at, s.timezone);
-  if (p.weekday !== s.weekday) return false;
-  return p.minutes >= toMinutes(s.windowStart) - SLOT_EARLY / MINUTE && p.minutes <= toMinutes(s.windowEnd);
+  return slotsOn(s, isoDate(p.year, p.month, p.day)).find(
+    (x) => p.minutes >= toMinutes(x.startTime) - SLOT_EARLY / MINUTE && p.minutes <= toMinutes(x.endTime),
+  );
 }
 
 // The series for a marked session, and how sure we are.
@@ -38,8 +41,10 @@ function placeMarked(
   const real = series.filter((s) => s.id !== OTHER_ID);
   const prefix = unclear ? "the name matched more than one series" : "no series named";
   if (real.length === 1 && !unclear) return { seriesId: real[0].id, confidence: "high", status: "auto", why: "" };
-  const slot = real.find((s) => inSlot(s, at));
-  if (slot) return { seriesId: slot.id, confidence: "low", status: "pending", why: `${prefix}; in the ${scheduleReason(slot)}` };
+  for (const s of real) {
+    const slot = slotAt(s, at);
+    if (slot) return { seriesId: s.id, confidence: "low", status: "pending", why: `${prefix}; in the ${scheduleReason(s, slot)}` };
+  }
   return { seriesId: OTHER_ID, confidence: "low", status: "pending", why: `${prefix}; filed under Other` };
 }
 

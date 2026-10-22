@@ -383,4 +383,8 @@ export class TableStore implements SessionStore {
   async putSeries(series: Series) {
     await this.table.put({ PK: pk(series.id), SK: "CONFIG", ...series });
   }
+
+  async deleteSeries(id: string) {
+    await this.table.transact([{ delete: { PK: pk(id), SK: "CONFIG" } }]);
+  }
 }

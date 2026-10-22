@@ -8,6 +8,7 @@
 import type { BeeConversation } from "./bee/cli.js";
 import { hasSchedule, type Series } from "./series.js";
 import { partsInSpan, scheduleSpans, windowSession, type Session, type Span } from "./sessions.js";
+import { weekdayOf, type Slot } from "./slots.js";
 import type { Claim, SessionRef, SessionTag } from "./store/types.js";
 
 export interface Candidate {
@@ -27,7 +28,10 @@ export interface Placed {
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function scheduleReason(series: Series): string {
+// "Tue 17:00 to 18:00 slot" for the weekly slot; "Thu 18:00 to 18:10 dated
+// slot" for a dated one.
+export function scheduleReason(series: Series, slot?: Slot): string {
+  if (slot?.source === "dated") return `${WEEKDAY_NAMES[weekdayOf(slot.date)]} ${slot.startTime} to ${slot.endTime} dated slot`;
   return hasSchedule(series) ? `${WEEKDAY_NAMES[series.weekday]} ${series.windowStart} to ${series.windowEnd} slot` : "";
 }
 
@@ -43,10 +47,10 @@ export function keywordIn(parts: BeeConversation[], series: Series): string | un
 // to check, so its slot alone is filed, as before tags existed.
 export function windowCandidates(conversations: BeeConversation[], series: Series): Candidate[] {
   const out: Candidate[] = [];
-  for (const span of scheduleSpans(conversations, series)) {
+  for (const { slot: where, ...span } of scheduleSpans(conversations, series)) {
     const session = windowSession(partsInSpan(conversations, span, series.minOverlapMinutes), span, series.minDurationMinutes);
     if (!session) continue;
-    const slot = scheduleReason(series);
+    const slot = scheduleReason(series, where);
     const keyword = keywordIn(session.parts, series);
     const tag: SessionTag = keyword
       ? { source: "schedule", confidence: "high", status: "auto", reason: `${slot}, and "${keyword}" in Bee's summary` }

@@ -34,6 +34,7 @@ import { BeeCliError, BeeData, DEFAULT_DAYS, MAX_DAYS } from "./bee-data.js";
 import { beeConversation, beeJournal, dynamoGet, dynamoQuery, type Lookup } from "./lookups.js";
 import { PAGE } from "./review-page.js";
 import { exactSearch, keywordSearch, MAX_QUERY, neuralSearch } from "./search.js";
+import { scheduleRoute } from "./schedule-ui.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SESSIONS_PER_SERIES = 20;
@@ -220,6 +221,10 @@ const TEXT_TYPES = ["journal", "conversation", "insight", "daily", "fact"];
 
 async function route(store: SessionStore, beeData: BeeData, req: IncomingMessage, res: ServerResponse, url: URL, opts: ReviewStateOptions) {
   const path = url.pathname;
+  if (path === "/schedule" || path.startsWith("/api/schedule")) {
+    const reply = await scheduleRoute(store, req.method ?? "GET", url, () => readJson(req));
+    if (reply) return send(res, reply.status, reply.body);
+  }
   const q = url.searchParams;
   if (req.method === "GET" && path === "/") return send(res, 200, PAGE);
   if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store, opts));

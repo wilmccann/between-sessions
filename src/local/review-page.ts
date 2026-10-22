@@ -47,7 +47,7 @@ export const PAGE = /* html */ `<!doctype html>
 </head>
 <body>
 <h1>Between Sessions: review</h1>
-<p class="muted">Local only (127.0.0.1). Summaries and Bee text stay hidden until you press "show". Bee data is read live and never stored.</p>
+<p><a id="nav-schedule">Schedule</a> <span class="muted">Local only (127.0.0.1). Summaries and Bee text stay hidden until you press "show". Bee data is read live and never stored.</span></p>
 <div id="searchbar" class="bar" role="search"></div>
 <div id="searchinfo" class="muted" role="status"></div>
 <div id="tabs" role="tablist"></div>
@@ -63,6 +63,7 @@ export const PAGE = /* html */ `<!doctype html>
 <script>
 "use strict";
 const token = new URLSearchParams(location.search).get("token") || "";
+document.getElementById("nav-schedule").setAttribute("href", "/schedule?token=" + encodeURIComponent(token));
 let state = null; // the Marty tab
 let bee = null; // the Bee data tab, read the first time it's opened
 let beeLoading = false;

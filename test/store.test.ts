@@ -32,6 +32,25 @@ describe("file store", () => {
     assert.deepEqual(await store.listSeries(), [series]);
     assert.equal(await store.getSeries("missing"), null);
   });
+
+  it("round-trips dated sessions", async () => {
+    const dated = [
+      { date: "2026-10-22", start: "18:00", end: "18:10" },
+      { date: "2026-10-27", skip: true as const },
+    ];
+    await store.putSeries({ ...series, dated });
+    assert.deepEqual((await store.getSeries(series.id))?.dated, dated);
+  });
+
+  it("deletes a series' config and nothing else", async () => {
+    await store.putSeries({ ...series, id: "synthetic-spare", name: "Synthetic spare" });
+    await store.addAgendaItem(series.id, "Synthetic agenda item");
+    await store.deleteSeries("synthetic-spare");
+    assert.equal(await store.getSeries("synthetic-spare"), null);
+    assert.deepEqual((await store.listSeries()).map((s) => s.id), [series.id]);
+    assert.equal((await store.listAgenda(series.id)).length, 1);
+    await store.deleteSeries("missing"); // deleting nothing is fine
+  });
 });
 
 describe("session versions", () => {

@@ -84,7 +84,7 @@ class FakeElement extends FakeNode {
   }
 }
 
-const STATIC_IDS = ["searchbar", "searchinfo", "tabs", "marty-tab", "readback", "filters", "app", "bee-tab", "bee-filters", "bee-app"];
+const STATIC_IDS = ["nav-schedule", "searchbar", "searchinfo", "tabs", "marty-tab", "readback", "filters", "app", "bee-tab", "bee-filters", "bee-app"];
 
 let server: Server;
 let port: number;

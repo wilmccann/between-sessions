@@ -1,7 +1,7 @@
 // A Series is a recurring 1:1 (therapy, coaching, an interview loop). It may
-// have a weekly schedule, which picks its sessions out of Bee conversations
-// when you didn't mark them with the Bee button; without one, its sessions
-// come from markers only.
+// have a weekly schedule and dated sessions, which pick its sessions out of
+// Bee conversations when you didn't mark them with the Bee button; without
+// either, its sessions come from markers only.
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 
@@ -11,6 +11,49 @@ const hhmm = z.string().regex(/^\d{2}:\d{2}$/);
 export const OTHER_ID = "other";
 
 export const DEFAULT_TIMEZONE = process.env.DEFAULT_TIMEZONE ?? "America/New_York";
+
+// A dated session: one day's slot, local time in the series' timezone, or
+// `skip: true` for no slot that day. Any dated entry on a date replaces the
+// weekly slot that day (see slots.ts).
+export type DatedEntry = { date: string; start: string; end: string } | { date: string; skip: true };
+
+const realDate = (s: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+};
+const realTime = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+
+const DatedSchema = z
+  .object({
+    date: z.string(),
+    start: z.string().optional(),
+    end: z.string().optional(),
+    skip: z.literal(true).optional(),
+  })
+  .superRefine((e, ctx) => {
+    if (!realDate(e.date)) ctx.addIssue({ code: "custom", path: ["date"], message: `Use a real date as YYYY-MM-DD, not "${e.date}"` });
+    if (e.skip) {
+      if (e.start !== undefined || e.end !== undefined) ctx.addIssue({ code: "custom", message: "A skipped day has no start or end" });
+      return;
+    }
+    if (e.start === undefined || e.end === undefined) {
+      ctx.addIssue({ code: "custom", message: "A dated session needs a start and an end (HH:MM), or skip: true" });
+      return;
+    }
+    let ok = true;
+    for (const key of ["start", "end"] as const) {
+      if (realTime(e[key]!)) continue;
+      ok = false;
+      ctx.addIssue({ code: "custom", path: [key], message: `Use a 24-hour time as HH:MM, not "${e[key]}"` });
+    }
+    if (ok && minutesOf(e.end) <= minutesOf(e.start)) {
+      ctx.addIssue({ code: "custom", path: ["end"], message: `The end (${e.end}) must be after the start (${e.start})` });
+    }
+  })
+  .transform((e): DatedEntry => (e.skip ? { date: e.date, skip: true } : { date: e.date, start: e.start!, end: e.end! }));
 
 const SeriesSchema = z
   .object({
@@ -29,12 +72,18 @@ const SeriesSchema = z
     minDurationMinutes: z.number().int().positive().default(30), // total overlap
     maxSessionMinutes: z.number().int().positive().default(120), // closes a start marker with no end
     insightWindowHours: z.number().int().positive().default(72),
+    dated: z.array(DatedSchema).default([]),
   })
   .refine(
     (s) => [s.weekday, s.windowStart, s.windowEnd].every((v) => v === undefined) ||
       [s.weekday, s.windowStart, s.windowEnd].every((v) => v !== undefined),
     { message: "A schedule needs weekday, windowStart and windowEnd together" },
-  );
+  )
+  .superRefine((s, ctx) => {
+    const skipped = new Set(s.dated.filter((e) => "skip" in e).map((e) => e.date));
+    const both = new Set(s.dated.filter((e) => !("skip" in e) && skipped.has(e.date)).map((e) => e.date));
+    for (const date of both) ctx.addIssue({ code: "custom", path: ["dated"], message: `${date} has both a skip and a dated session; keep one` });
+  });
 
 export type Series = z.infer<typeof SeriesSchema>;
 export type ScheduledSeries = Series & { weekday: number; windowStart: string; windowEnd: string };
