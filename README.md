@@ -187,6 +187,16 @@ corepack yarn show                         # same call, full content
 corepack yarn test                         # tests run on synthetic data only
 ```
 
+### Testing tools
+
+Two tools for checking the Bee button without waiting for the next collector run. Both run on your Mac only and change nothing in the deployed product. They read your stored series and sessions from DynamoDB with your AWS credentials, or from the local file store with `--store file`.
+
+- **Voice-note watcher** (`corepack yarn watch`): follows `bee stream` (voice notes and conversation changes only; never utterances, locations or todos) and prints one line per event: the time, what Bee heard, and what the collector will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser. It also says when Bee's cleaned-up text would parse differently. Conversations show only their id and state, never a title or summary. It prints to the terminal and writes nothing to disk. The first connection can take about 20 seconds.
+  - `--collect`: when a voice note is ready, runs the collector Lambda once and prints its counts, so filing shows end to end in about a minute.
+  - `--shape`: no text at all (kinds, times and verdicts only).
+- **Review page** (`corepack yarn review-ui`): prints a `http://127.0.0.1:8789/?token=...` link (port from `REVIEW_PORT`). The page lists series, sessions with their tags and Bee ids (last 4 characters), markers, voice notes, the review queue and open agenda items. Summaries stay hidden unless you press "show" on a row. You can move a session to another series, confirm it, mark it as not a session, or remove an agenda item, through the same code as the MCP tools, with the same read-back. It listens on 127.0.0.1 only, checks the Host header, and needs the token made at each launch; the page is self-contained (no external scripts or fonts).
+- **`Test:` prefix:** start a voice note with "Test:" ("Test: start coaching session") to rehearse a command. The watcher shows what it would do ("Test: would be START, series coaching (new series)"), and the collector treats it as a plain note, so nothing is filed.
+
 ## Privacy
 
 This handles sensitive personal data. Everything runs in your own AWS account. Tokens live only in Secrets Manager or local environment files and are never committed. Bee exports (`bee-sync/`), local snapshots and `series.local.json` are git-ignored. The table is kept if the stack is deleted (see Cost); delete it yourself when you're done. Tests and fixtures use synthetic data only.

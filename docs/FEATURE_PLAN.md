@@ -25,8 +25,8 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next".
 
 **Testing tools (MVP, local only):**
-- [ ] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, a `Test:` rehearsal prefix, `--collect`, `--shape`.
-- [ ] [Local review page](#testing-tools-mvp-local-only) `yarn review-ui`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
+- [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, a `Test:` rehearsal prefix, `--collect`, `--shape`.
+- [x] [Local review page](#testing-tools-mvp-local-only) `yarn review-ui`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
 
 **Operations:**
 - [x] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack (deployed Thu Oct 22).
