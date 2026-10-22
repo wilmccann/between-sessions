@@ -172,7 +172,7 @@ describe("Bee data: privacy", () => {
 });
 
 describe("Bee data: cache", () => {
-  it("keeps one read for 60 seconds; refresh=1 reads again", async () => {
+  it("keeps one read until refresh=1, however old", async () => {
     let now = Date.now();
     const bee = new BeeData(store, { now: () => now });
     const own = await startServer(store, token, { bee });
@@ -181,7 +181,7 @@ describe("Bee data: cache", () => {
       await call(own.port, "/api/bee", { token });
       const once = await count();
       assert.equal(once, 8);
-      now += 59_000;
+      now += 6 * 3_600_000;
       await call(own.port, "/api/bee", { token });
       assert.equal(await count(), once);
       // The Marty column is joined on every request, so edits show at once.
@@ -189,18 +189,16 @@ describe("Bee data: cache", () => {
       const joined = byKey((await call(own.port, "/api/bee", { token })).json().rows);
       assert.equal(joined["conversation:900666"].marty, "not a session");
       assert.equal(await count(), once);
+      // Exact search on either tab and text reuse the read.
+      assert.equal((await call(own.port, "/api/search?q=mart&mode=exact&scope=bee", { token })).status, 200);
+      assert.equal((await call(own.port, "/api/search?q=mart&mode=exact&scope=marty", { token })).status, 200);
+      assert.equal((await call(own.port, "/api/bee/text?type=journal&id=jrnl-synthetic-6666", { token })).status, 200);
+      assert.equal(await count(), once);
       await call(own.port, "/api/bee?refresh=1", { token });
       assert.equal(await count(), 2 * once);
-      now += 61_000;
-      await call(own.port, "/api/bee", { token });
-      assert.equal(await count(), 3 * once);
       // A different window reads again.
       await call(own.port, "/api/bee?days=7", { token });
-      assert.equal(await count(), 4 * once);
-      // Text comes from the cached read, even after it's stale.
-      now += 120_000;
-      assert.equal((await call(own.port, "/api/bee/text?type=journal&id=jrnl-synthetic-6666", { token })).status, 200);
-      assert.equal(await count(), 4 * once);
+      assert.equal(await count(), 3 * once);
     } finally {
       own.server.close();
     }

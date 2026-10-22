@@ -66,17 +66,29 @@ const textFields = (parts: TextPart[] | undefined): Field[] => (parts ?? []).map
 // Row keys, the same on the page: "session:<id>", "review:<id>",
 // "marker:<journalId>", "note:<journalId>", "agenda:<seriesId>@<at>",
 // "series:<id>", and the Bee data tab's own keys ("journal:<id>", ...).
-export async function exactSearch(q: string, state: ReviewState, store: SessionStore, beeData: BeeData) {
-  // Without Bee (the CLI failed), it still searches the stored rows.
+// Exact words over one tab's rows. The Marty tab's search uses Bee's text
+// only if Bee was already read (it never starts a read, so no Keychain
+// prompt); the Bee data tab's search reads Bee once if it hasn't yet.
+export type SearchScope = "marty" | "bee";
+
+export async function exactSearch(q: string, scope: SearchScope, state: ReviewState, store: SessionStore, beeData: BeeData) {
+  // Without Bee (the CLI failed), the Bee data tab has nothing to search.
   let beeError: string | undefined;
   let beeRows: BeeRow[] = [];
   let texts = new Map<string, TextPart[]>();
-  try {
-    beeRows = (await beeData.rows()).rows;
-    texts = await beeData.allTexts();
-  } catch (err) {
-    if (!(err instanceof BeeCliError)) throw err;
-    beeError = err.message;
+  let beeText = false;
+  if (scope === "bee") {
+    try {
+      beeRows = (await beeData.rows()).rows;
+      texts = await beeData.allTexts();
+      beeText = true;
+    } catch (err) {
+      if (!(err instanceof BeeCliError)) throw err;
+      beeError = err.message;
+    }
+  } else {
+    const loaded = beeData.loadedTexts();
+    if (loaded) [texts, beeText] = [loaded, true];
   }
   const journalText = (id: string) => textFields(texts.get(rowKey("journal", id)));
   const conversationText = (ids: string[]) => ids.flatMap((id) => textFields(texts.get(rowKey("conversation", id))));
@@ -86,7 +98,7 @@ export async function exactSearch(q: string, state: ReviewState, store: SessionS
     for (const v of await store.listSessions(s.id, SESSIONS_PER_SERIES)) stored.set(refId(v), v.parts.map((p) => p.shortSummary));
   }
 
-  const docs: Doc[] = [
+  const marty: Doc[] = [
     ...state.series.map((s) => ({
       key: `series:${s.id}`,
       fields: [{ label: "id", value: s.id }, { label: "series", value: s.name }, ...s.spokenNames.map((value) => ({ label: "spoken name", value }))],
@@ -134,12 +146,13 @@ export async function exactSearch(q: string, state: ReviewState, store: SessionS
         fields: [...ids(i.journalId ? [i.journalId] : []), { label: "agenda item", value: i.text }, { label: "series", value: g.series }],
       })),
     ),
-    ...beeRows.map((r) => ({
-      key: r.key,
-      fields: [...ids([r.id]), { label: "type", value: r.type }, { label: "state", value: r.state }, { label: "Marty", value: r.marty }, ...textFields(texts.get(r.key))],
-    })),
   ];
-  return { mode: "exact" as const, matches: matchDocs(docs, q), ...(beeError ? { beeError } : {}) };
+  const bee: Doc[] = beeRows.map((r) => ({
+    key: r.key,
+    fields: [...ids([r.id]), { label: "type", value: r.type }, { label: "state", value: r.state }, { label: "Marty", value: r.marty }, ...textFields(texts.get(r.key))],
+  }));
+  const docs = scope === "bee" ? bee : marty;
+  return { mode: "exact" as const, scope, matches: matchDocs(docs, q), beeText, ...(beeError ? { beeError } : {}) };
 }
 
 export interface SearchRow {

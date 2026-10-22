@@ -71,62 +71,82 @@ afterEach(async () => {
 });
 
 const search = async (params: Record<string, string>) => call(port, `/api/search?${new URLSearchParams(params)}`, { token });
-const exact = async (q: string) => {
-  const res = await search({ q, mode: "exact" });
+const exact = async (q: string, scope: "marty" | "bee") => {
+  const res = await search({ q, mode: "exact", scope });
   assert.equal(res.status, 200, res.body);
   assert.doesNotMatch(res.body, /Synthetic|Fake Street|synthetic\.example/);
   return Object.fromEntries((res.json().matches as { key: string; matchedIn: string[] }[]).map((m) => [m.key, m.matchedIn]));
 };
 
 describe("search: exact words", () => {
-  it("finds rows on both tabs by their hidden text, without sending it", async () => {
-    const mart = await exact("mart");
-    for (const id of ["6666", "5555", "1111", "7777"]) assert.deepEqual(mart[`journal:jrnl-synthetic-${id}`], ["note text"], id);
-    assert.deepEqual(mart["note:jrnl-synthetic-1111"], ["note text"]);
-    assert.deepEqual(mart["marker:jrnl-synthetic-1111"], ["note text"]);
-    assert.equal(mart["note:jrnl-synthetic-3333"], undefined);
+  it("searches one tab's rows by their hidden text, without sending it", async () => {
+    // The Marty tab never starts a Bee read: before one, no note text.
+    const before = await search({ q: "garden", mode: "exact", scope: "marty" });
+    assert.deepEqual(before.json().matches, []);
+    assert.equal(before.json().beeText, false);
+    assert.deepEqual(await argvLines(argvFile), []);
 
-    const noCat = await exact("mart -cat");
+    const mart = await exact("mart", "bee");
+    for (const id of ["6666", "5555", "1111", "7777"]) assert.deepEqual(mart[`journal:jrnl-synthetic-${id}`], ["note text"], id);
+    assert.ok(Object.keys(mart).every((k) => /^(journal|conversation|insight):/.test(k)), "Bee data rows only");
+    const noCat = await exact("mart -cat", "bee");
     assert.equal(noCat["journal:jrnl-synthetic-7777"], undefined);
     assert.deepEqual(noCat["journal:jrnl-synthetic-6666"], ["note text"]);
+    assert.deepEqual(Object.keys(await exact("GARDEN.", "bee")), ["journal:jrnl-synthetic-3333"]);
 
-    const garden = await exact("GARDEN.");
-    assert.deepEqual(Object.keys(garden).sort(), ["journal:jrnl-synthetic-3333", "note:jrnl-synthetic-3333"]);
+    // Once Bee has been read, the Marty tab searches note text too, from the same read.
+    const reads = (await argvLines(argvFile)).length;
+    const martyMart = await exact("mart", "marty");
+    assert.deepEqual(martyMart["note:jrnl-synthetic-1111"], ["note text"]);
+    assert.deepEqual(martyMart["marker:jrnl-synthetic-1111"], ["note text"]);
+    assert.equal(martyMart["note:jrnl-synthetic-3333"], undefined);
+    assert.ok(Object.keys(martyMart).every((k) => !/^(journal|conversation|insight):/.test(k)), "Marty rows only");
+    assert.deepEqual(Object.keys(await exact("GARDEN.", "marty")), ["note:jrnl-synthetic-3333"]);
+    assert.equal((await argvLines(argvFile)).length, reads);
   });
 
   it("searches sessions by stored short summaries and their Bee conversations", async () => {
     // Stored ("Synthetic short") and Bee's ("Synthetic: short").
-    const short = await exact("synthetic short 900111");
-    assert.deepEqual(Object.keys(short).sort(), ["conversation:900111", `session:coaching@${COACHING}`]);
+    assert.deepEqual(Object.keys(await exact("synthetic short 900111", "bee")), ["conversation:900111"]);
+    const short = await exact("synthetic short 900111", "marty");
+    assert.deepEqual(Object.keys(short), [`session:coaching@${COACHING}`]);
     assert.deepEqual(short[`session:coaching@${COACHING}`], ["id", "short summary", "summary"]);
     // The long summary comes from Bee only.
-    const long = await exact("long summary 900222");
-    assert.deepEqual(Object.keys(long).sort(), ["conversation:900222", `session:therapy@${THERAPY}`]);
+    const long = await exact("long summary 900222", "marty");
+    assert.deepEqual(Object.keys(long), [`session:therapy@${THERAPY}`]);
     assert.ok(long[`session:therapy@${THERAPY}`].includes("summary"));
-    const title = await exact("title 2101");
+    const title = await exact("title 2101", "bee");
     assert.deepEqual(Object.keys(title), ["insight:2101"]);
     assert.ok(title["insight:2101"].includes("insight title"));
-    assert.ok((await exact("description 2102"))["insight:2102"].includes("insight description"));
+    assert.ok((await exact("description 2102", "bee"))["insight:2102"].includes("insight description"));
   });
 
   it("searches visible fields: reason, series, status, kind, Marty", async () => {
-    const acme = await exact("keyword acme");
+    const acme = await exact("keyword acme", "marty");
     assert.deepEqual(Object.keys(acme), [`review:acme-interview@${ACME_GUESS}`]);
     assert.deepEqual(acme[`review:acme-interview@${ACME_GUESS}`], ["id", "series", "reason"]);
-    assert.deepEqual((await exact("dont know"))["journal:jrnl-synthetic-5555"], ["Marty"]);
-    assert.ok((await exact("pending"))[`session:other@${OTHER}`].includes("status"));
-    assert.ok((await exact("not a session"))["conversation:900555"].includes("Marty"));
-    assert.ok((await exact("start"))["marker:jrnl-synthetic-1111"].includes("kind"));
-    assert.deepEqual((await exact("weekly"))["series:therapy"], ["series"]);
-    assert.ok((await exact("ignored"))["note:jrnl-synthetic-3333"].includes("status"));
+    assert.deepEqual((await exact("dont know", "bee"))["journal:jrnl-synthetic-5555"], ["Marty"]);
+    assert.ok((await exact("pending", "marty"))[`session:other@${OTHER}`].includes("status"));
+    assert.ok((await exact("not a session", "bee"))["conversation:900555"].includes("Marty"));
+    assert.ok((await exact("start", "marty"))["marker:jrnl-synthetic-1111"].includes("kind"));
+    assert.deepEqual((await exact("weekly", "marty"))["series:therapy"], ["series"]);
+    assert.ok((await exact("ignored", "marty"))["note:jrnl-synthetic-3333"].includes("status"));
   });
 
-  it("still searches the stored rows when Bee fails", async () => {
+  it("reports a Bee failure on the Bee data tab; the Marty tab doesn't call Bee", async () => {
     process.env.FAKE_BEE_FAIL = "5";
-    const res = await search({ q: "acme", mode: "exact" });
-    assert.equal(res.status, 200);
-    assert.equal(res.json().beeError, "Bee CLI failed (exit 5)");
-    assert.ok(res.json().matches.some((m: { key: string }) => m.key === `review:acme-interview@${ACME_GUESS}`));
+    const marty = await search({ q: "acme", mode: "exact", scope: "marty" });
+    assert.equal(marty.status, 200);
+    assert.equal(marty.json().beeError, undefined);
+    assert.ok(marty.json().matches.some((m: { key: string }) => m.key === `review:acme-interview@${ACME_GUESS}`));
+    const bee = await search({ q: "acme", mode: "exact", scope: "bee" });
+    assert.equal(bee.status, 200);
+    assert.equal(bee.json().beeError, "Bee CLI failed (exit 5)");
+    assert.deepEqual(bee.json().matches, []);
+  });
+
+  it("refuses an unknown scope", async () => {
+    assert.equal((await search({ q: "acme", mode: "exact", scope: "both" })).status, 400);
   });
 });
 

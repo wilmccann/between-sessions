@@ -16,7 +16,9 @@ export const MAX_DAYS = 60;
 const PAGE_SIZE = 100;
 const MAX_PAGES = 30;
 export const INSIGHT_LIMIT = 200;
-const CACHE_MS = 60_000;
+// One read is kept until Refresh: each `bee` call is a process, and each can
+// cost a Keychain prompt.
+const CACHE_MS = Infinity;
 
 // A failed `bee` run, reported by exit code only: its stderr can hold the
 // query or Bee content.
@@ -234,6 +236,11 @@ export class BeeData {
     });
     rows.sort((a, b) => (b.start ?? b.createdAt ?? "").localeCompare(a.start ?? a.createdAt ?? ""));
     return { days: s.days, loadedAt: new Date(s.loadedAt).toISOString(), rows, cutShort: s.cutShort };
+  }
+
+  // The cached read's text, or null if Bee hasn't been read yet. Never reads.
+  loadedTexts(): Map<string, TextPart[]> | null {
+    return this.snapshot?.texts ?? null;
   }
 
   // Every row's text, for the server-side exact search. Never sent as is.

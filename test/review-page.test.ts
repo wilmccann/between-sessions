@@ -84,7 +84,7 @@ class FakeElement extends FakeNode {
   }
 }
 
-const STATIC_IDS = ["nav-schedule", "searchbar", "searchinfo", "tabs", "marty-tab", "readback", "filters", "app", "bee-tab", "bee-filters", "bee-app"];
+const STATIC_IDS = ["nav-schedule", "tabs", "marty-tab", "marty-search", "marty-searchinfo", "readback", "filters", "app", "bee-tab", "bee-search", "bee-searchinfo", "bee-filters", "bee-app"];
 
 let server: Server;
 let port: number;
@@ -153,7 +153,7 @@ describe("review page: script", () => {
     assert.ok(calls.length >= 9, String(calls.length));
     assert.equal((script.match(/replaceChildren\(\.\.\.\[/g) ?? []).length, calls.length);
     assert.equal((script.match(/\]\.flat\(2\)\.filter\(\(x\) => x != null\)\);/g) ?? []).length, calls.length);
-    for (const id of ["searchbar", "searchinfo", "tabs", "filters", "app", "bee-filters", "bee-app"]) {
+    for (const id of ["tabs", "filters", "app", "bee-filters", "bee-app"]) {
       assert.ok(script.includes(`document.getElementById("${id}").replaceChildren(...[`), id);
     }
     assert.doesNotThrow(() => new Function(script));
@@ -226,32 +226,51 @@ describe("review page: script", () => {
     assert.doesNotMatch(root.textContent, /\[object|undefined|\bnull\b/);
   });
 
-  it("searches: exact words filters both tabs; Bee semantic lists results and highlights sessions", async () => {
-    const { root, byId } = await openPage();
+  it("searches each tab on its own: Marty exact words; Bee data exact, keyword and semantic", async () => {
+    const { root, byId, fetched } = await openPage();
     await until(() => byId("app").textContent.includes("Voice notes"), "the Marty tab");
-    const q = byId("q");
-    const mode = byId("mode");
+    // The Marty tab has one mode and no mode select.
+    assert.equal(byId("marty-mode"), null);
+    assert.ok(byId("bee-mode"));
 
-    q.value = "garden";
-    mode.value = "exact";
-    await buttonIn(byId("searchbar"), "Search").fire("click");
-    await until(() => byId("searchinfo").textContent.includes("matching rows"), "the exact search");
-    assert.match(byId("searchinfo").textContent, /Exact words "garden": 2 matching rows/);
-    const notes = rowWith(byId("app"), "jrnl-synthetic-3333");
-    assert.ok(notes.textContent.includes("matched: note text"));
-    assert.equal(rowWith(byId("app"), "jrnl-synthetic-1111"), undefined);
+    // Before Bee is read, the Marty search doesn't read it (no Keychain prompt).
+    byId("marty-q").value = "garden";
+    await buttonIn(byId("marty-search"), "Search").fire("click");
+    await until(() => byId("marty-searchinfo").textContent.includes("matching rows"), "the Marty search");
+    assert.match(byId("marty-searchinfo").textContent, /Exact words "garden": 0 matching rows\. Note text wasn't searched: open the Bee data tab once to read it\.$/);
+    assert.ok(!fetched.some((p) => p.startsWith("/api/bee")), "the Marty search reads no Bee data");
+
+    // Bee data tab: one read, then an exact search on that tab only.
     await buttonIn(byId("tabs"), "Bee data").fire("click");
     await until(() => byId("bee-app").textContent.includes("Bee data, last 14 days"), "the Bee data");
+    assert.equal(bodyRows(byId("bee-app")).length, 13);
+    byId("bee-q").value = "garden";
+    byId("bee-mode").value = "exact";
+    await buttonIn(byId("bee-search"), "Search").fire("click");
+    await until(() => byId("bee-searchinfo").textContent.includes("matching rows"), "the Bee exact search");
+    assert.match(byId("bee-searchinfo").textContent, /Exact words "garden": 1 matching rows\.$/);
     assert.equal(bodyRows(byId("bee-app")).length, 1);
     assert.ok(byId("bee-app").textContent.includes("matched: note text"));
 
-    q.value = "when did I feel stretched?";
-    mode.value = "neural";
-    await q.fire("keydown", { key: "Enter" });
-    await until(() => byId("searchinfo").textContent.includes("Bee semantic search"), "the semantic search");
-    assert.match(byId("searchinfo").textContent, /listed on the Bee data tab\.$/);
+    // Now Bee's text is loaded, the Marty search finds the note; the Bee tab's search doesn't touch it.
+    await buttonIn(byId("tabs"), "Marty").fire("click");
+    await buttonIn(byId("marty-search"), "Search").fire("click");
+    await until(() => byId("marty-searchinfo").textContent.includes("1 matching rows"), "the Marty search again");
+    assert.match(byId("marty-searchinfo").textContent, /Exact words "garden": 1 matching rows\.$/);
+    assert.ok(rowWith(byId("app"), "jrnl-synthetic-3333").textContent.includes("matched: note text"));
+    assert.equal(rowWith(byId("app"), "jrnl-synthetic-1111"), undefined);
+    assert.ok(fetched.filter((p) => p.startsWith("/api/search")).every((p) => /scope=(marty|bee)/.test(p)));
+
+    // Semantic search lists ranked results on the Bee data tab, without Created or Updated.
+    await buttonIn(byId("tabs"), "Bee data").fire("click");
+    byId("bee-q").value = "when did I feel stretched?";
+    byId("bee-mode").value = "neural";
+    await byId("bee-q").fire("keydown", { key: "Enter" });
+    await until(() => byId("bee-searchinfo").textContent.includes("Bee semantic search"), "the semantic search");
+    assert.match(byId("bee-searchinfo").textContent, /^Bee semantic search "when did I feel stretched\?": 2 results\.$/);
     const app = byId("bee-app");
     assert.ok(app.textContent.includes('Bee semantic search results for "when did I feel stretched?"'));
+    assert.deepEqual(app.all((e) => e.tagName === "th").map((e) => e.textContent), ["Match", "Type", "Id", "Start and end", "State", "Marty", "Text", "Look up"]);
     const rows = bodyRows(app);
     assert.equal(rows.length, 2);
     assert.ok(rows[0].textContent.startsWith("#1conversation900333"));
@@ -261,28 +280,31 @@ describe("review page: script", () => {
     await buttonIn(rows[0] as FakeElement, "show").fire("click");
     await until(() => app.textContent.includes("Synthetic: neural detailed 900333"), "the hit's text");
 
+    // No effect on the Marty tab: its own search still holds, nothing highlighted.
     await buttonIn(byId("tabs"), "Marty").fire("click");
-    const session = rowWith(byId("app"), "Unnamed start marker");
-    assert.ok(session);
-    const hits = byId("app").all((r) => r.tagName === "tr" && r.className === "hit");
-    assert.ok(hits.length >= 2, "the session and its review row"); // other@OTHER in Sessions and the review queue
-    assert.ok(hits.every((r) => r.textContent.includes("matched: Bee semantic search (#1)")));
-    assert.ok(hits.some((r) => r.textContent.includes(`other@${OTHER}`)));
+    assert.match(byId("marty-searchinfo").textContent, /Exact words "garden": 1 matching rows/);
+    assert.ok(!byId("app").textContent.includes("Bee semantic"));
+    await buttonIn(byId("marty-search"), "Clear").fire("click");
+    assert.equal(byId("marty-searchinfo").textContent, "");
+    assert.ok(rowWith(byId("app"), "jrnl-synthetic-1111"));
 
-    await buttonIn(byId("searchbar"), "Clear").fire("click");
-    assert.equal(byId("searchinfo").textContent, "");
-    assert.equal(byId("app").all((r) => r.tagName === "tr" && r.className === "hit").length, 0);
+    // Clearing the Bee search goes back to the same read: no new Bee read.
+    const reads = fetched.filter((p) => p.startsWith("/api/bee?") || p === "/api/bee").length;
     await buttonIn(byId("tabs"), "Bee data").fire("click");
+    await buttonIn(byId("bee-search"), "Clear").fire("click");
+    assert.equal(byId("bee-searchinfo").textContent, "");
     assert.equal(bodyRows(byId("bee-app")).length, 13);
+    assert.equal(fetched.filter((p) => p.startsWith("/api/bee?") || p === "/api/bee").length, reads);
     assert.doesNotMatch(root.textContent, /\[object|undefined|\bnull\b/);
   });
 
   it("reports a refused search", async () => {
     const { byId } = await openPage();
     await until(() => byId("app").textContent.includes("Voice notes"), "the Marty tab");
-    byId("q").value = "-nope";
-    byId("mode").value = "keyword";
-    await buttonIn(byId("searchbar"), "Search").fire("click");
-    await until(() => byId("searchinfo").textContent.includes("can't start with -"), "the error");
+    await buttonIn(byId("tabs"), "Bee data").fire("click");
+    byId("bee-q").value = "-nope";
+    byId("bee-mode").value = "keyword";
+    await buttonIn(byId("bee-search"), "Search").fire("click");
+    await until(() => byId("bee-searchinfo").textContent.includes("can't start with -"), "the error");
   });
 });

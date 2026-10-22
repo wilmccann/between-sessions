@@ -249,7 +249,11 @@ async function route(store: SessionStore, beeData: BeeData, req: IncomingMessage
     const mode = q.get("mode") ?? "exact";
     if (!text) throw new HttpError(400, "Type something to search for");
     if (text.length > MAX_QUERY) throw new HttpError(400, `Keep a search under ${MAX_QUERY} characters`);
-    if (mode === "exact") return send(res, 200, await exactSearch(text, await reviewState(store, opts), store, beeData));
+    if (mode === "exact") {
+      const scope = q.get("scope") ?? "marty";
+      if (scope !== "marty" && scope !== "bee") throw new HttpError(400, "scope is marty or bee");
+      return send(res, 200, await exactSearch(text, scope, await reviewState(store, opts), store, beeData));
+    }
     if (mode !== "keyword" && mode !== "neural") throw new HttpError(400, "mode is exact, keyword or neural");
     // Bee would read a leading "-" as an option.
     if (text.startsWith("-")) throw new HttpError(400, "A Bee search can't start with -");
