@@ -26,6 +26,16 @@ export interface BeeInsight {
   timezone: string;
 }
 
+// A hold-and-speak voice note (the Bee button in Voice Notes mode).
+export interface BeeJournal {
+  id: string;
+  text: string;
+  state: string; // READY once transcribed
+  created_at: number; // epoch ms
+  updated_at: number;
+  corrections?: unknown[];
+}
+
 interface Page {
   next_cursor?: string | null;
   [key: string]: unknown;
@@ -71,4 +81,8 @@ export function listConversations(sinceMs: number): Promise<BeeConversation[]> {
 
 export function listInsights(sinceMs: number): Promise<BeeInsight[]> {
   return listSince<BeeInsight>("insights", "insights", (i) => i.generated_at, sinceMs);
+}
+
+export function listJournals(sinceMs: number): Promise<BeeJournal[]> {
+  return listSince<BeeJournal>("journals", "journals", (j) => j.created_at, sinceMs);
 }

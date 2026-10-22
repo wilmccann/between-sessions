@@ -14,4 +14,5 @@ it("pages through the CLI until items are older than the lookback", async () => 
     [1004, 1003, 1002, 1005, 1001],
   );
   assert.equal(snapshot.insights.length, 6);
+  assert.deepEqual(snapshot.journals?.map((j) => j.id), ["j-synthetic-3", "j-synthetic-2", "j-synthetic-1"]);
 });

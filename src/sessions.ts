@@ -1,6 +1,13 @@
 // Matches Bee conversations to a Series and gathers the first batch of
 // insights Bee generated after each session.
-import { listConversations, listInsights, type BeeConversation, type BeeInsight } from "./bee/cli.js";
+import {
+  listConversations,
+  listInsights,
+  listJournals,
+  type BeeConversation,
+  type BeeInsight,
+  type BeeJournal,
+} from "./bee/cli.js";
 import { hasSchedule, type Series } from "./series.js";
 import type { SessionInput, SessionTag } from "./store/types.js";
 import { formatLocal, HOUR, localParts, MINUTE, toMinutes, zonedTime } from "./time.js";
@@ -86,12 +93,17 @@ export interface Snapshot {
   collectedAt: string;
   conversations: BeeConversation[];
   insights: BeeInsight[];
+  journals?: BeeJournal[];
 }
 
 export async function collectSnapshot(now = Date.now()): Promise<Snapshot> {
   const since = now - LOOKBACK_DAYS * 24 * HOUR;
-  const [conversations, insights] = await Promise.all([listConversations(since), listInsights(since)]);
-  return { collectedAt: new Date(now).toISOString(), conversations, insights };
+  const [conversations, insights, journals] = await Promise.all([
+    listConversations(since),
+    listInsights(since),
+    listJournals(since),
+  ]);
+  return { collectedAt: new Date(now).toISOString(), conversations, insights, journals };
 }
 
 // What the store keeps for one session: the parts' summaries and the first
