@@ -219,4 +219,6 @@ export interface SessionStore {
   getSeries(id: string): Promise<Series | null>;
   listSeries(): Promise<Series[]>;
   putSeries(series: Series): Promise<void>;
+  // Deletes only the series' config; the caller checks it has nothing stored.
+  deleteSeries(id: string): Promise<void>;
 }
