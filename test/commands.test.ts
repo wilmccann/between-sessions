@@ -21,6 +21,8 @@ describe("parseCommand: session markers", () => {
     assert.deepEqual(parse("Um, ending the session"), { kind: "end" });
     assert.deepEqual(parse("Stat session"), { kind: "start" });
     assert.deepEqual(parse("Okay. Start a new session with Globex."), { kind: "start", series: "Globex" });
+    assert.deepEqual(parse("Start session: um."), { kind: "start" });
+    assert.deepEqual(parse("End session, uh, x"), { kind: "end" });
   });
 
   it("leaves ordinary notes alone", () => {

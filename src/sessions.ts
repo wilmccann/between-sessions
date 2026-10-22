@@ -101,11 +101,18 @@ export interface Snapshot {
 
 export async function collectSnapshot(now = Date.now()): Promise<Snapshot> {
   const since = now - LOOKBACK_DAYS * 24 * HOUR;
+  // Voice notes and todos feed the Bee button and the digest; if either
+  // read fails, sessions are still collected.
+  const optional = <T>(what: string, p: Promise<T[]>) =>
+    p.catch((err: Error) => {
+      console.warn(`bee ${what} list failed; continuing without it (${err.name})`);
+      return undefined;
+    });
   const [conversations, insights, journals, todos] = await Promise.all([
     listConversations(since),
     listInsights(since),
-    listJournals(since),
-    listTodos(since),
+    optional("journals", listJournals(since)),
+    optional("todos", listTodos(since)),
   ]);
   return { collectedAt: new Date(now).toISOString(), conversations, insights, journals, todos };
 }

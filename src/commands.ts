@@ -26,12 +26,14 @@ const words = (s: string) => s.replace(/\s+/g, " ").trim().replace(/[.!]$/, "").
 // A series name from the rest of a start or end note: "coaching session."
 // is "coaching"; "session: Acme interview" is "Acme interview".
 function nameFrom(rest: string): string {
-  return rest
-    .replace(/\b(sessions?|meetings?)\b/gi, " ")
+  const name = rest
+    .replace(/\b(sessions?|meetings?|um+|uh+|er+|hmm+)\b/gi, " ")
     .replace(FILLER_WORDS, " ")
     .replace(/[:.,;!?]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  // Too short to be a name: treat it as no name rather than create a series.
+  return name.replace(/\s/g, "").length < 3 ? "" : name;
 }
 
 const knows = (series: Series[], name: string) => name !== "" && matchSeriesName(series, name).kind !== "none";
