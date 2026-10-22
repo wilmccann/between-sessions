@@ -74,10 +74,10 @@ interface Snapshot {
   cutShort: { journals: boolean; conversations: boolean; insights: boolean };
 }
 
-const iso = (ms: unknown) => (typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
-const str = (v: unknown) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
+export const iso = (ms: unknown) => (typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
+export const str = (v: unknown) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
 export const rowKey = (type: string, id: string, source?: SearchSource) => (source ? `${source}:${type}:${id}` : `${type}:${id}`);
-const parts = (...xs: [string, unknown][]): TextPart[] => xs.map(([label, text]) => ({ label, text: str(text) })).filter((p) => p.text);
+export const parts =(...xs: [string, unknown][]): TextPart[] => xs.map(([label, text]) => ({ label, text: str(text) })).filter((p) => p.text);
 
 // Pages through `bee <resource> list` (newest first) until it reaches items
 // older than sinceMs, or MAX_PAGES.
@@ -238,8 +238,7 @@ export class BeeData {
 
   // Every row's text, for the server-side exact search. Never sent as is.
   async allTexts(days = DEFAULT_DAYS) {
-    const s = await this.load(days, false);
-    return { rows: s.rows, texts: s.texts };
+    return (await this.load(days, false)).texts;
   }
 
   // One row's text. A listed row needs the Bee data read (reads it if

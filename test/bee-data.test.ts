@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,22 +10,9 @@ import { fileStore } from "../src/store/file-store.js";
 import type { TableStore } from "../src/store/table-store.js";
 import { beeTabData, writeBeeTabData } from "./fixtures/bee-tab.js";
 import { fakeBee } from "./fixtures/index.js";
-import { coaching } from "./fixtures/meeting-types.js";
-import { call, seed, startServer } from "./fixtures/review-seed.js";
+import { argvLines, call, seedBeeTab, startServer } from "./fixtures/review-seed.js";
 
 process.env.BEE_BIN = fakeBee;
-
-// The review page seed, plus the other things Marty can do with a voice note
-// or conversation.
-export async function seedBeeTab(store: TableStore) {
-  await seed(store);
-  await store.putClaims([{ conversationId: 900555, seriesId: "", sessionStart: "", source: "you", status: "rejected" }]);
-  await store.putJournalRecord({ journalId: "jrnl-synthetic-5555", at: "2026-10-22T10:00:00.000Z", kind: "retag", status: "unfiled", reason: "I don't know a series called x" });
-  await store.putJournalRecord({ journalId: "jrnl-synthetic-6666", at: "2026-10-22T11:00:00.000Z", kind: "start", status: "filed", seriesId: coaching.id });
-}
-
-const argvLines = async (file: string): Promise<string[][]> =>
-  (await readFile(file, "utf8").catch(() => "")).split("\n").filter(Boolean).map((l) => JSON.parse(l));
 
 let store: TableStore;
 let server: Server;

@@ -1,4 +1,5 @@
 // A seeded store and an HTTP helper for the review page tests.
+import { readFile } from "node:fs/promises";
 import { request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { reviewServer, type ReviewServerOptions } from "../../src/local/review-ui.js";
@@ -64,6 +65,22 @@ export async function seed(store: TableStore) {
   await store.addAgendaItem(therapy.id, "Synthetic: sleep", { createdAt: "2026-10-21T13:00:00.000Z" });
   await store.saveTakeaway(other.id, OTHER, "Synthetic takeaway", { createdAt: "2026-10-21T18:40:00.000Z" });
 }
+
+// The seed, plus the other things Marty can do with a voice note or
+// conversation, for the Bee data tab (ids match test/fixtures/bee-tab.ts).
+export async function seedBeeTab(store: TableStore) {
+  await seed(store);
+  await store.putClaims([{ conversationId: 900555, seriesId: "", sessionStart: "", source: "you", status: "rejected" }]);
+  await store.putJournalRecord({ journalId: "jrnl-synthetic-5555", at: "2026-10-22T10:00:00.000Z", kind: "retag", status: "unfiled", reason: "I don't know a series called x" });
+  await store.putJournalRecord({ journalId: "jrnl-synthetic-6666", at: "2026-10-22T11:00:00.000Z", kind: "start", status: "filed", seriesId: coaching.id });
+}
+
+// The fake bee's argument log (FAKE_BEE_ARGV), one array per call.
+export const argvLines = async (file: string): Promise<string[][]> =>
+  (await readFile(file, "utf8").catch(() => ""))
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
 
 export interface Reply {
   status: number;

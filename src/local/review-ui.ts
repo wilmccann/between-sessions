@@ -25,9 +25,10 @@ import { dynamoStore, TABLE_NAME } from "../store/dynamo-store.js";
 import { fileStore } from "../store/file-store.js";
 import { itemKeys } from "../store/table-store.js";
 import type { SessionStore } from "../store/types.js";
-import { formatShort } from "../time.js";
+import { DAY, formatShort } from "../time.js";
 import { BeeCliError, BeeData, DEFAULT_DAYS, MAX_DAYS } from "./bee-data.js";
 import { beeConversation, beeJournal, dynamoGet, dynamoQuery, type Lookup } from "./lookups.js";
+import { exactSearch, keywordSearch, MAX_QUERY, neuralSearch } from "./search.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SESSIONS_PER_SERIES = 20;
@@ -124,7 +125,7 @@ export async function reviewState(store: SessionStore, opts: ReviewStateOptions 
       })),
     review: {
       line: queue.line as string | null,
-      sessions: (queue.sessions as { id: string }[]).map((r) => {
+      sessions: (queue.sessions as { id: string; guess: string; reason: string }[]).map((r) => {
         const item = itemsById.get(r.id);
         return {
           ...r,
@@ -138,6 +139,8 @@ export async function reviewState(store: SessionStore, opts: ReviewStateOptions 
     agenda,
   };
 }
+
+export type ReviewState = Awaited<ReturnType<typeof reviewState>>;
 
 // One session's short summary, for the "show" button.
 export async function sessionSummary(store: SessionStore, id: string) {
@@ -230,6 +233,21 @@ async function route(store: SessionStore, beeData: BeeData, req: IncomingMessage
     const parts = await beeData.text(type, id, source);
     if (!parts) throw new HttpError(404, "That row isn't in the Bee data read (try Refresh or search again)");
     return send(res, 200, { type, id, parts });
+  }
+  if (req.method === "GET" && path === "/api/search") {
+    const text = (q.get("q") ?? "").trim();
+    const mode = q.get("mode") ?? "exact";
+    if (!text) throw new HttpError(400, "Type something to search for");
+    if (text.length > MAX_QUERY) throw new HttpError(400, `Keep a search under ${MAX_QUERY} characters`);
+    if (mode === "exact") return send(res, 200, await exactSearch(text, await reviewState(store, opts), store, beeData));
+    if (mode !== "keyword" && mode !== "neural") throw new HttpError(400, "mode is exact, keyword or neural");
+    // Bee would read a leading "-" as an option.
+    if (text.startsWith("-")) throw new HttpError(400, "A Bee search can't start with -");
+    const now = Date.now();
+    const to = q.get("to") ? Date.parse(q.get("to")!) : now;
+    const from = q.get("from") ? Date.parse(q.get("from")!) : to - DEFAULT_DAYS * DAY;
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) throw new HttpError(400, "from and to are ISO times, from before to");
+    return send(res, 200, await (mode === "keyword" ? keywordSearch : neuralSearch)(text, from, to, store, beeData));
   }
   if (req.method === "GET" && path === "/api/summary") {
     const summary = await sessionSummary(store, url.searchParams.get("id") ?? "");
