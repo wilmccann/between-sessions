@@ -18,10 +18,11 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [ ] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
 - [ ] [Since-last-session digest](#2-since-last-session-digest-the-time-between-sessions): `get_since_last_session`.
 - [ ] [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp): start and end markers, voice-note commands (debrief, agenda, takeaway), marked ad-hoc sessions, `remove_agenda_item`. Device tests A and C (Oct 21 evening) and D (Thu Oct 22, 4pm).
+- [ ] [Session tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp): tags with best guesses, the review queue, `review_sessions` and `retag_session`, the brief's review line, Bee button retag commands.
 - [ ] [When is my next session](#small-addition-when-is-my-next-session).
 
 **Conditional:**
-- [ ] [Voice through Alexa](#4-voice-through-alexa-powered-by-bedrock-asking-without-a-screen), if Nova 2 Lite answers by Thu Oct 22, 1pm ET.
+- [ ] [Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen), if Nova 2 Lite answers by Thu Oct 22, 1pm ET.
 
 **Operations:**
 - [ ] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack.
@@ -62,11 +63,39 @@ Between Sessions follows the week around a recurring 1:1 (therapy, coaching, an 
 | Any time | "What can I ask?" or type `/` | A short menu; one suggestion after every answer | [Menu](#1-menu-knowing-what-to-ask) |
 | Mid-week | "What's happened since my last session?" | Days since, conversation count, topics that came back, Bee's insights, new todos | [Digest](#2-since-last-session-digest-the-time-between-sessions) |
 | Mid-week, hands busy | *(hold the Bee button)* "Agenda: the work trip" | It appears on your agenda, marked "from Bee" | [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp) |
-| Walking to a session | "Alexa, give me my prep brief" | A spoken brief of three sentences or fewer | [Voice](#4-voice-through-alexa-powered-by-bedrock-asking-without-a-screen) + prep brief |
+| Walking to a session | "Alexa, give me my prep brief" | A spoken brief of three sentences or fewer | [Voice](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen) + prep brief |
 | Session starts | *(hold the Bee button)* "Start session" | The session's start is marked at that moment | [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp) |
 | Session ends | *(hold)* "End session", then *(hold)* "Debrief: ..." | The session is captured between your markers, with your debrief; the next brief confirms it | [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp) |
+| After an unsure guess | "I tagged Thursday's 52-minute conversation as coaching. Right?" "No, an Acme interview." | Moved to Acme interviews; agenda updated and read back | [Tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp) |
 | Right after | "Save a takeaway: delegate earlier" (or hold: "Takeaway: ...") | "Saved." | Voice or Bee button + takeaways |
 | Before the next session | "Prep brief" | Last session, first-night insights, digest, agenda, takeaways, when the next session is | Prep brief, now richer |
+
+## Meeting types (reference)
+
+The product supports four kinds of meetings. Examples are synthetic.
+
+**How each type gets detected:**
+
+| Type | Setup | Today (time window only) | With Bee button markers (MVP) |
+| --- | --- | --- | --- |
+| Weekly therapy | Weekly slot | ✅ Works. A late, long or moved session is missed or cut short | ✅ Markers give the exact span; the window catches a session you forgot to mark |
+| Coaching, 1 to 2 a month | Today it has to pretend to be weekly | ⚠️ In off weeks, any conversation in that slot becomes a fake coaching session. Sessions on other days are missed | ✅ With no schedule, markers only. ⚠️ Forget to mark it and nothing is recorded |
+| Interviews (Acme, Globex) | One series per company, no schedule | ❌ Can't be set up | ✅ "Start session: Acme interview" creates the series. Several rounds in one day work if each one is marked |
+| Other | The catch-all series | ❌ | ✅ Works, but of limited use |
+
+**Each tool with each type (assuming markers are built):**
+
+| Tool | Weekly therapy | Coaching (1 to 2 a month) | Interviews (Acme, Globex) | Other |
+| --- | --- | --- | --- | --- |
+| `get_prep_brief` | ✅ "Prep for therapy": last session, first-night insights, takeaways, open agenda, next session | ✅ Content works. ⚠️ With no schedule, "next session" should say "not scheduled", not a guessed weekday | ✅ "Prep for Globex": the last Globex round, Globex agenda only. Good mid-loop: before round 2 it shows round 1 | ⚠️ "Last other meeting" is just the latest unrelated meeting. Better to offer to rename it into a real series |
+| `get_last_session` | ✅ | ✅ Still there a month later, after Bee has dropped it (14-day window) | ✅ "Last Acme interview". ⚠️ Only the latest round; there's no date option to ask for an earlier one | ✅ The latest marked meeting |
+| `list_sessions` | ✅ | ✅ | ✅ One company at a time. ❌ "All my interviews" across Acme and Globex isn't possible | ✅ |
+| `add_agenda_item` | ✅ "Add sleep to my therapy agenda": open until the next therapy session | ✅ With the window only, a fake off-week session silently closes the item early | ✅ "Add 'ask about team size' to Globex". ⚠️ When the loop ends, items stay open forever | ⚠️ Closes at the next random meeting. Better to ask which series |
+| `list_agenda` | ✅ | ✅ (same early-close risk) | ✅ Per company | ⚠️ Same as above |
+| `save_takeaway` | ✅ Saved on the last therapy session | ✅ | ⚠️ If you don't name the company, it goes to the first series. If you save round 1's takeaway after round 2 is recorded, it lands on round 2 | ✅ Saved on the last marked meeting |
+| `get_since_last_session` (planned) | ✅ "6 days, 41 conversations, the work trip came up 4 times" | ⚠️ Undercounts once the gap passes 14 days (Bee's history window) or 21 days (the collector's lookback) | ⚠️ Gaps of hours during a run of interviews. "Since my first Acme round" would be more useful | ❌ Meaningless. Turn it off for Other |
+
+Today, a request that names no series goes to whichever series the store lists first, and series names must match exactly.
 
 ## Existing capabilities (kept)
 
@@ -201,7 +230,53 @@ Between Sessions follows the week around a recurring 1:1 (therapy, coaching, an 
 - A session with no markers is still found from the schedule window.
 - With synthetic fixtures: "Start session: Acme interview" and a misheard "Akme interview" land in the same new, unscheduled series; an unnamed start with two series goes to "Other"; a lone start or a lone stop still produces a session.
 
-### 4. Voice through Alexa, powered by Bedrock: asking without a screen
+### 4. Session tagging and review: best guesses you can correct (MVP)
+
+**What it adds:** every meeting that looks like a session gets a tag (which series it belongs to), with a best guess when you didn't say. Sure guesses are filed; unsure ones wait in a review queue, and you confirm or retag them wherever you are. The product is honest about what it guessed, and you stay in control.
+
+**Why it's in the MVP:** it closes the biggest gaps in [Meeting types](#meeting-types-reference): fake sessions from a sparse schedule slot (which close agenda items early and catch takeaways), an unnamed request going to the wrong series, and "Other" turning into a junk drawer.
+
+**What you experience:**
+- The brief and the digest open with "1 session to review" when the queue isn't empty, with the deadline when it's close: "the oldest expires in 3 days" (Bee keeps history for 14 days).
+- In Claude Code, `/review` lists the queue: date, time, length, guessed tag, reason, and the last 4 characters of the Bee id.
+- By voice (once Alexa works): "I found a 52-minute conversation Thursday at 4:05 PM and tagged it coaching. Is that right?" "No." "Was it therapy, an interview, something else, or not a session?" "An Acme interview." "Moved it to Acme interviews. Your Acme agenda has 2 open items." Spoken review gives date, time, length and tag only, never the summary.
+- With the Bee button: "Retag: last session coaching", "That was Acme", "Not a session".
+- Every retag reads back what changed, including agenda effects: "2 agenda items reopened."
+
+**How a guess is made** (at collection time; nothing new in the tool path):
+
+| Evidence | Example | Result |
+| --- | --- | --- |
+| Marker with a name | "Start session: coaching" | Certain: filed, no review |
+| Marker without a name, several series | "Start session" | Filed under the best guess, and queued for review |
+| Schedule slot plus a series keyword in Bee's short summary | The therapy slot, and "therapist" in the summary | High: filed |
+| Schedule slot only | The coaching slot in an off week | Low: queued, not filed (no more fake sessions) |
+| Keyword only | "Acme" and "interview" in a 45-minute conversation | Low: queued |
+| Pattern from past confirmations | The last 3 confirmed coaching sessions were Thursdays around 16:00 | Raises confidence |
+| Optional: Nova Lite at collection time | Reads the short summary, returns a series and confidence | Breaks ties; never in the tool path |
+
+Locations, utterances and calendar data are never used as evidence.
+
+**Supports:** session detection for every meeting type, and through it the brief, last session, agenda openness, takeaways and digest. It also fixes the default-series problem: a request that names no series uses the only series, or the most recently ended session (takeaways, debriefs) or the next scheduled one (prep), always says which, and asks when it's unclear.
+
+**Built from:**
+- A tag on each session: `series`, `source` (marker, schedule, keyword, pattern, model, you), `confidence`, `status` (auto, pending, confirmed, rejected), a short `reason`, and the Bee conversation ids.
+- A review queue: pending candidates, oldest first, with the date Bee drops each one.
+- New tools `review_sessions` (lists the queue) and `retag_session` (id, and a series or "not a session"). Claude Code and the Alexa bridge both use them, so voice review comes free once Alexa works.
+- A `review` MCP prompt, and the "N to review" line in `get_prep_brief` and `get_since_last_session`.
+- Bee button commands "Retag: ...", "That was ...", "Not a session", in the same parser as the other voice-note commands, using the fuzzy series names.
+- Retag moves the session's versions, takeaways and debrief to the new series in one DynamoDB transaction. This is the table's first delete path, so it ships together with `RemovalPolicy.RETAIN` and deletion protection.
+- Learning, kept simple: a confirmation adds to the series' keywords and timing pattern; a rejection lowers confidence for that slot. After 3 confirmed sessions with a regular pattern, the product offers a schedule ("Coaching seems to be every other Thursday at 4. Use that?").
+
+**Data stored:** a pending candidate keeps only its time, length, Bee ids and reason, no summary. On confirm, the collector fetches and keeps the summaries and insights like any session. A rejected id is remembered so it's never suggested again, with nothing else stored. The trade-off: a pending guess must be reviewed within Bee's 14-day window, hence the deadline in the review line.
+
+**After Friday: review web app.** A small page on S3 and CloudFront: recent sessions with date, time, length, Bee id, tag, confidence and reason; a menu to change the tag; filters for pending and per series; an optional "show summary" per row. It needs a Cognito user pool (one user), because the MCP token can't go into browser code, so it waits until after the submission.
+
+**Works when:**
+- With synthetic fixtures: a schedule-only match in an off week is queued, not filed; a named marker is filed with no review; confirming fetches and stores the session; rejecting reopens the agenda items it had closed; retagging moves takeaways with the session; a rejected id is never queued again.
+- On real data, the brief shows the review line with counts only, and one retag in Claude Code moves a session (checked by counts and ids).
+
+### 5. Voice through Alexa, powered by Bedrock: asking without a screen
 
 **What it adds:** the product works when you're walking to or from a session, where typing is the wrong interface.
 
@@ -255,6 +330,7 @@ The series config already has the weekday and start time, so the next session's 
 - Live Bee calls from the MCP Lambda, and semantic (`--neural`) search.
 - Writes to Bee (completing todos, editing facts).
 - claude.ai / Claude mobile connector (needs Cognito OAuth).
+- Review web app (after Friday; needs a Cognito user pool). See capability 4.
 - Push delivery (brief the evening before a session, takeaway nudge after one). Strong idea for after Friday; needs a privacy decision because content would leave AWS.
 
 ## Open questions
@@ -269,6 +345,7 @@ The series config already has the weekday and start time, so the next session's 
 | 6 | Is a journal's `created_at` the moment you spoke, or when Bee finished processing it? Markers depend on it | Test A (compare with the phone-clock times) |
 | 7 | How reliably are command words ("start", "end", "debrief", "agenda", "takeaway") transcribed? | Tests A and D; tune the forgiving matches |
 | 8 | What maximum length closes a session that has a start marker but no end? | Default per series (for example 2 hours); revisit after real use |
+| 9 | Which confidence levels file automatically, and which go to review? | Start with the evidence table in capability 4; tune on real data and the review answers |
 
 ## Decision log
 
@@ -282,3 +359,4 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 21 | Marked ad-hoc sessions are MVP: a series' schedule becomes optional, spoken series names are fuzzy-matched (new names create unscheduled series), and an "Other" series catches unnamed starts. Any session you mark is kept past Bee's 14-day window. |
 | Oct 21 | Calendar ruled out as a session source: no calendar integration on Bee's free tier, and Bee Pro can't be purchased right now (in-app and Google Play). |
 | Oct 21 | AWS Support denied Sonnet 5.5; approved Nova Lite and Nova 2 Lite (propagating). Bedrock's role is the Alexa agent model, plus optional topic naming at collect time. |
+| Oct 21 | Session tagging and review is MVP: every session gets a tag with a best guess, unsure guesses wait in a review queue, and `review_sessions` and `retag_session` work in Claude Code, by Bee button and (once it works) by Alexa. Pending guesses store no summary until confirmed. The review web app waits until after Friday because it needs Cognito sign-in. |
