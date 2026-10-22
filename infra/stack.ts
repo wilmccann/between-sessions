@@ -36,7 +36,8 @@ export class BetweenSessionsStack extends Stack {
     const modelId = String(this.node.tryGetContext("bedrockModelId") ?? DEFAULT_MODEL_ID);
     if (!(modelId in BEDROCK_MODELS)) throw new Error(`bedrockModelId must be one of ${Object.keys(BEDROCK_MODELS).join(", ")}`);
 
-    // Personal data: removed with the stack.
+    // Stored sessions outlive Bee's 14-day history, so they can't be rebuilt:
+    // the table survives the stack and can't be deleted by accident.
     const table = new Table(this, "Table", {
       tableName: PREFIX,
       partitionKey: { name: "PK", type: AttributeType.STRING },
@@ -44,7 +45,8 @@ export class BetweenSessionsStack extends Stack {
       billingMode: BillingMode.PAY_PER_REQUEST,
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       encryption: TableEncryption.DEFAULT,
-      removalPolicy: RemovalPolicy.DESTROY,
+      deletionProtection: true,
+      removalPolicy: RemovalPolicy.RETAIN,
     });
 
     // Created by scripts/setup-bee-secret.sh; the stack only reads and refreshes it.
