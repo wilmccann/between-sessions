@@ -7,6 +7,7 @@ import type { BeeJournal } from "./bee/cli.js";
 import { choose } from "./choose.js";
 import { parseCommand, type Command } from "./commands.js";
 import { matchSeriesName, newSeries, normalizeName, type Series } from "./series.js";
+import { latestTarget, retag } from "./review.js";
 import { openAgenda } from "./store/agenda.js";
 import type { JournalRecord, Marker, SessionStore, SessionVersion } from "./store/types.js";
 import { HOUR, MINUTE } from "./time.js";
@@ -206,9 +207,29 @@ export async function fileNotes(
         await record({ kind: "drop", status: "filed", seriesId: c.series.id });
         break;
       }
-      default:
-        // Review commands (retag, that was, not a session) are handled in review.ts.
-        counts.waiting++;
+      case "retag":
+      case "not-session": {
+        // "Retag: coaching", "That was Acme", "Not a session": about the
+        // session (or guess) that just happened.
+        const target = await latestTarget(store, series, at + 5 * MINUTE);
+        if (!target) {
+          await fail("no session to retag");
+          continue;
+        }
+        if (command.kind === "not-session") {
+          await retag(store, target, "not-session", series);
+          await record({ kind: "not-session", status: "filed" });
+          break;
+        }
+        const c = await choose(store, command.series, "recent", at, series);
+        if (!c.series) {
+          await fail(c.ask);
+          continue;
+        }
+        await retag(store, target, c.series, series);
+        await record({ kind: "retag", status: "filed", seriesId: c.series.id });
+        break;
+      }
     }
   }
 }

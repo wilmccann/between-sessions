@@ -1,5 +1,6 @@
 import { digestSentence } from "../../digest.js";
 import { buttonReceipt } from "../../receipts.js";
+import { reviewLine } from "../../review.js";
 import { OTHER_ID } from "../../series.js";
 import { formatLocal } from "../../sessions.js";
 import { chooseSeries, defineTool, json, say, seriesArg, text } from "../tool.js";
@@ -22,12 +23,13 @@ export default defineTool({
     const digest = await store.getDigest(series.id);
     if (!digest) return text(`There's no ${series.name} digest yet. It's computed every 15 minutes once a session is recorded.`);
     const now = Date.now();
-    const [records, all] = await Promise.all([store.listJournalRecords(), store.listSeries()]);
+    const [records, all, queue] = await Promise.all([store.listJournalRecords(), store.listSeries(), store.listReviewItems()]);
     return say(
       why,
       json({
         series: series.name,
         fromBee: buttonReceipt(records, all, now),
+        review: reviewLine(queue, now),
         summary: digestSentence(digest, now),
         lastSessionEndedLocal: digest.since ? formatLocal(Date.parse(digest.since), series.timezone) : null,
         conversations: digest.conversations,

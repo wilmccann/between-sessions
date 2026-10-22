@@ -57,7 +57,8 @@ const run = (collectedAt: string, conversations: BeeConversation[], ins = insigh
 describe("digest", () => {
   it("takes topics from the last session's summaries and the capture keywords", () => {
     const words = topicWords({ start: "", end: "", insights: [], parts: [{ id: 1, start: "", end: "", shortSummary: "Check-in", summary: session.summary }] }, therapy);
-    assert.deepEqual(words, ["therapist", "trip", "sleep"]);
+    assert.deepEqual(words, ["trip", "sleep"]);
+    assert.deepEqual(topicWords(null, { ...therapy, captureKeywords: ["Therapist"] }), ["therapist"]);
   });
 
   it("counts conversations, topics, todos and new insights since the last session", async () => {

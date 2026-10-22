@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { refId } from "../../review.js";
 import { formatLocal } from "../../sessions.js";
 import { chooseSeries, defineTool, json, minutes, say, seriesArg, text } from "../tool.js";
 import { foundBy } from "../views.js";
@@ -22,6 +23,7 @@ export default defineTool({
     return say(why, json({
       series: series.name,
       sessions: sessions.map((v) => ({
+        id: refId({ seriesId: series.id, start: v.start }),
         startedAt: v.start,
         startedAtLocal: formatLocal(Date.parse(v.start), series.timezone),
         durationMinutes: minutes(v.start, v.end),

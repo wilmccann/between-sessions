@@ -9,6 +9,8 @@ import getSinceLastSession from "./tools/get-since-last-session.js";
 import listAgenda from "./tools/list-agenda.js";
 import listSessions from "./tools/list-sessions.js";
 import removeAgendaItem from "./tools/remove-agenda-item.js";
+import retagSession from "./tools/retag-session.js";
+import reviewSessions from "./tools/review-sessions.js";
 import saveTakeaway from "./tools/save-takeaway.js";
 
 export interface CapabilityPrompt {
@@ -92,6 +94,20 @@ export const CAPABILITIES: Capability[] = [
       args: { text: "The takeaway, in your words", series: "Which series" },
       text: ({ text, series }) =>
         text ? `Save a takeaway${inSeries(series)}: ${text}` : `I want to save a takeaway from my last session${inSeries(series)}.`,
+    },
+  },
+  {
+    id: "review",
+    label: "confirm or correct the sessions I guessed",
+    example: "Which sessions need review?",
+    tools: [reviewSessions, retagSession],
+    inMenu: false,
+    prompt: {
+      name: "review",
+      title: "Review guessed sessions",
+      args: {},
+      text: () =>
+        "Which sessions need my review? List them with date, time, length, the guess and why, then ask me about each one.",
     },
   },
   {

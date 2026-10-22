@@ -5,6 +5,7 @@
 //      | AGENDA#<createdISO>#<uuid> | TAKEAWAY#<sessionStartISO>#<uuid>
 //      | DEBRIEF#<sessionStartISO>#<journalId> | BRIEF#<sessionStartISO> | DIGEST
 //   PK = TALLIES, SK = DAY#<YYYY-MM-DD>: the collector's running day counts.
+//   PK = REVIEW, SK = R#<startISO>#<seriesId>: guesses waiting for you.
 //   PK = CLAIMS, SK = CONV#<conversationId>: which session holds each Bee
 //   conversation (see Claim).
 //   PK = MARKERS, SK = M#<atISO>#<journalId>: Bee button start/end markers.
@@ -22,9 +23,11 @@ import type {
   JournalRecord,
   Marker,
   PrepBrief,
+  ReviewItem,
   SessionInput,
   SessionRef,
   SessionStore,
+  SessionTag,
   SessionVersion,
   Takeaway,
 } from "./types.js";
@@ -53,6 +56,8 @@ const CLAIMS = "CLAIMS";
 const MARKERS = "MARKERS";
 const JOURNALS = "JOURNALS";
 const TALLIES = "TALLIES";
+const REVIEW = "REVIEW";
+const reviewSk = (r: { start: string; seriesId: string }) => `R#${r.start}#${r.seriesId}`;
 const claimSk = (conversationId: number) => `CONV#${conversationId}`;
 // Items that belong to one session and move with it.
 const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];
@@ -148,6 +153,90 @@ export class TableStore implements SessionStore {
   async listClaims() {
     const items = await this.table.query(CLAIMS, "CONV#");
     return new Map(items.map((i) => [Number(i.conversationId), strip<Claim>(i)]));
+  }
+
+  async putClaims(claims: Claim[]) {
+    if (claims.length) await this.table.transact(claims.map((c) => ({ put: { PK: CLAIMS, SK: claimSk(c.conversationId), ...c } })));
+  }
+
+  async hasSession(ref: SessionRef) {
+    return (await this.table.query(pk(ref.seriesId), `SESSION#${ref.start}#V#`, { limit: 1 })).length > 0;
+  }
+
+  private async attachmentOps(from: SessionRef, to: SessionRef | null): Promise<WriteOp[]> {
+    const ops: WriteOp[] = [];
+    for (const kind of ATTACHED) {
+      for (const item of await this.table.query(pk(from.seriesId), `${kind}${from.start}#`)) {
+        const id = item.SK.slice(`${kind}${from.start}#`.length);
+        ops.push({ delete: { PK: item.PK, SK: item.SK } });
+        if (to) {
+          ops.push({
+            put: { ...item, PK: pk(to.seriesId), SK: `${kind}${to.start}#${id}`, seriesId: to.seriesId, sessionStart: to.start },
+          });
+        }
+      }
+    }
+    return ops;
+  }
+
+  async moveSession(from: SessionRef, toSeriesId: string, tag: SessionTag) {
+    const moving = from.seriesId !== toSeriesId;
+    const ops: WriteOp[] = [];
+    const ids = new Set<number>();
+    for (const v of await this.table.query(pk(from.seriesId), `SESSION#${from.start}#V#`)) {
+      strip<SessionVersion>(v).parts.forEach((p) => ids.add(p.id));
+      if (moving) ops.push({ delete: { PK: v.PK, SK: v.SK } });
+      ops.push({ put: { ...v, PK: pk(toSeriesId), seriesId: toSeriesId, tag } });
+    }
+    if (moving) {
+      ops.push(...(await this.attachmentOps(from, { seriesId: toSeriesId, start: from.start })));
+      ops.push({ delete: { PK: pk(from.seriesId), SK: `BRIEF#${from.start}` } });
+    }
+    for (const id of ids) {
+      const claim: Claim = { conversationId: id, seriesId: toSeriesId, sessionStart: from.start, source: "you", status: "confirmed" };
+      ops.push({ put: { PK: CLAIMS, SK: claimSk(id), ...claim } });
+    }
+    await this.table.transact(onePerItem(ops));
+  }
+
+  async rejectSession(ref: SessionRef, keepOn: SessionRef | null) {
+    const ops: WriteOp[] = [];
+    const ids = new Set<number>();
+    for (const v of await this.table.query(pk(ref.seriesId), `SESSION#${ref.start}#V#`)) {
+      strip<SessionVersion>(v).parts.forEach((p) => ids.add(p.id));
+      ops.push({ delete: { PK: v.PK, SK: v.SK } });
+    }
+    const attached = await this.attachmentOps(ref, keepOn);
+    ops.push(...attached);
+    ops.push({ delete: { PK: pk(ref.seriesId), SK: `BRIEF#${ref.start}` } });
+    for (const id of ids) {
+      const claim: Claim = { conversationId: id, seriesId: "", sessionStart: "", source: "you", status: "rejected" };
+      ops.push({ put: { PK: CLAIMS, SK: claimSk(id), ...claim } });
+    }
+    await this.table.transact(onePerItem(ops));
+    return keepOn ? attached.filter((op) => "put" in op).length : 0;
+  }
+
+  async listReviewItems() {
+    return (await this.table.query(REVIEW, "R#")).map((i) => strip<ReviewItem>(i));
+  }
+
+  async putReviewItem(item: ReviewItem) {
+    await this.table.put({ PK: REVIEW, SK: reviewSk(item), ...item });
+  }
+
+  async deleteReviewItem(item: ReviewItem) {
+    await this.table.transact([{ delete: { PK: REVIEW, SK: reviewSk(item) } }]);
+  }
+
+  async updateMarkers(atTimes: string[], seriesId: string | null) {
+    const ops: WriteOp[] = [];
+    for (const item of await this.table.query(MARKERS, "M#")) {
+      if (!atTimes.includes(String(item.at))) continue;
+      if (seriesId === null) ops.push({ delete: { PK: item.PK, SK: item.SK } });
+      else ops.push({ put: { ...item, seriesId, unclear: false } });
+    }
+    if (ops.length) await this.table.transact(ops);
   }
 
   async getLatestSession(seriesId: string) {

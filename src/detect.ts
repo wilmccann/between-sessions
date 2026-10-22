@@ -31,20 +31,81 @@ export function scheduleReason(series: Series): string {
   return hasSchedule(series) ? `${WEEKDAY_NAMES[series.weekday]} ${series.windowStart} to ${series.windowEnd} slot` : "";
 }
 
+// The first of the series' captureKeywords that Bee's summaries mention.
+export function keywordIn(parts: BeeConversation[], series: Series): string | undefined {
+  const text = parts.map((p) => `${p.short_summary ?? ""} ${p.summary ?? ""}`).join(" ");
+  return series.captureKeywords.find((k) => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(text));
+}
+
+// Window sessions. With a series keyword in Bee's summary the guess is
+// high and filed; a slot with no keyword (the coaching slot in an off week)
+// is low and waits for review. A series with no captureKeywords has nothing
+// to check, so its slot alone is filed, as before tags existed.
 export function windowCandidates(conversations: BeeConversation[], series: Series): Candidate[] {
   const out: Candidate[] = [];
   for (const span of scheduleSpans(conversations, series)) {
     const session = windowSession(partsInSpan(conversations, span, series.minOverlapMinutes), span, series.minDurationMinutes);
     if (!session) continue;
-    out.push({
-      seriesId: series.id,
-      session,
-      span,
-      minDurationMinutes: series.minDurationMinutes,
-      tag: { source: "schedule", confidence: "high", status: "auto", reason: scheduleReason(series) },
-    });
+    const slot = scheduleReason(series);
+    const keyword = keywordIn(session.parts, series);
+    const tag: SessionTag = keyword
+      ? { source: "schedule", confidence: "high", status: "auto", reason: `${slot}, and "${keyword}" in Bee's summary` }
+      : series.captureKeywords.length
+        ? { source: "schedule", confidence: "low", status: "pending", reason: `${slot} only` }
+        : { source: "schedule", confidence: "high", status: "auto", reason: slot };
+    out.push({ seriesId: series.id, session, span, minDurationMinutes: series.minDurationMinutes, tag });
   }
   return out;
+}
+
+// A long conversation outside any slot that mentions a series keyword
+// ("acme" in a 45-minute conversation): low, waits for review.
+export const KEYWORD_MIN_MINUTES = 30;
+
+export function keywordCandidates(conversations: BeeConversation[], series: Series): Candidate[] {
+  if (!series.captureKeywords.length) return [];
+  return conversations
+    .filter((c) => c.end_time - c.start_time >= KEYWORD_MIN_MINUTES * 60_000)
+    .flatMap((c) => {
+      const keyword = keywordIn([c], series);
+      if (!keyword) return [];
+      const minutes = Math.round((c.end_time - c.start_time) / 60_000);
+      return [
+        {
+          seriesId: series.id,
+          session: { parts: [c], start: c.start_time, end: c.end_time },
+          span: { from: c.start_time, to: c.end_time },
+          minDurationMinutes: 0,
+          tag: { source: "keyword", confidence: "low", status: "pending", reason: `"${keyword}" in Bee's summary, ${minutes} minutes` },
+        } satisfies Candidate,
+      ];
+    });
+}
+
+// Sessions you confirmed or retagged: rebuilt from their claims each run,
+// so their summaries keep being versioned. They beat every guess.
+export function claimCandidates(conversations: BeeConversation[], claims: Map<number, Claim>): Candidate[] {
+  const groups = new Map<string, { seriesId: string; start: string; parts: BeeConversation[] }>();
+  for (const c of conversations) {
+    const claim = claims.get(c.id);
+    if (!claim || claim.status !== "confirmed" || !claim.seriesId) continue;
+    const key = `${claim.seriesId}|${claim.sessionStart}`;
+    const g = groups.get(key) ?? { seriesId: claim.seriesId, start: claim.sessionStart, parts: [] };
+    g.parts.push(c);
+    groups.set(key, g);
+  }
+  return [...groups.values()].map(({ seriesId, start, parts }) => {
+    parts.sort((a, b) => a.start_time - b.start_time);
+    const from = Math.min(Date.parse(start), parts[0].start_time);
+    const to = Math.max(...parts.map((p) => p.end_time));
+    return {
+      seriesId,
+      session: { parts, start: Date.parse(start), end: to },
+      span: { from, to },
+      minDurationMinutes: 0,
+      tag: { source: "you", confidence: "certain", status: "confirmed", reason: "You confirmed it" },
+    };
+  });
 }
 
 export const priority = (t: { source: SessionTag["source"]; status: SessionTag["status"] }) =>

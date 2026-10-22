@@ -44,6 +44,20 @@ export interface SessionRef {
   start: string;
 }
 
+// A guess waiting for you: either a session filed under its best guess
+// (`filed`), or a candidate not filed until you confirm it. Holds times,
+// length, Bee ids and the reason; never a summary.
+export interface ReviewItem {
+  seriesId: string; // the guess
+  start: string;
+  end: string;
+  conversationIds: number[];
+  source: TagSource;
+  reason: string;
+  filed: boolean;
+  dropsAt: string; // when Bee's 14-day history drops the conversations
+}
+
 // One session as Bee described it at collection time.
 export interface SessionInput {
   start: string; // ISO; identifies the session within its series
@@ -168,6 +182,20 @@ export interface SessionStore {
     replaces?: SessionRef[],
   ): Promise<{ version: SessionVersion; written: boolean }>;
   listClaims(): Promise<Map<number, Claim>>;
+  putClaims(claims: Claim[]): Promise<void>;
+  hasSession(ref: SessionRef): Promise<boolean>;
+  // Moves every version, takeaway and debrief of a session to another
+  // series (same start), with a new tag, in one transaction.
+  moveSession(from: SessionRef, toSeriesId: string, tag: SessionTag): Promise<void>;
+  // Deletes a session's versions and brief, marks its conversations
+  // rejected, and moves its takeaways and debriefs to `keepOn` (or deletes
+  // them), in one transaction. Returns how many takeaways and debriefs moved.
+  rejectSession(ref: SessionRef, keepOn: SessionRef | null): Promise<number>;
+  listReviewItems(): Promise<ReviewItem[]>; // oldest first
+  putReviewItem(item: ReviewItem): Promise<void>;
+  deleteReviewItem(item: ReviewItem): Promise<void>;
+  // Points or removes the Bee button markers at these times.
+  updateMarkers(atTimes: string[], seriesId: string | null): Promise<void>;
   getLatestSession(seriesId: string): Promise<SessionVersion | null>;
   // Latest version of each session, newest session first.
   listSessions(seriesId: string, limit: number): Promise<SessionVersion[]>;

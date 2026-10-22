@@ -55,6 +55,8 @@ describe("MCP tools", () => {
       "list_agenda",
       "list_sessions",
       "remove_agenda_item",
+      "retag_session",
+      "review_sessions",
       "save_takeaway",
     ]);
     for (const t of tools) assert.ok((t.description ?? "").length > 40, t.name);
@@ -85,7 +87,7 @@ describe("MCP tools", () => {
 
   it("lists the prompts for / and fills them in", async () => {
     const { prompts } = await client.listPrompts();
-    assert.deepEqual(prompts.map((p) => p.name).sort(), ["agenda", "help", "prep", "since", "takeaway"]);
+    assert.deepEqual(prompts.map((p) => p.name).sort(), ["agenda", "help", "prep", "review", "since", "takeaway"]);
     const agenda = await client.getPrompt({ name: "agenda", arguments: { item: "the work trip" } });
     assert.match((agenda.messages[0].content as { text: string }).text, /Add "the work trip" to my agenda/);
     const prep = await client.getPrompt({ name: "prep", arguments: {} });

@@ -4,6 +4,7 @@ import { OTHER_ID, type Series } from "../series.js";
 import { formatLocal } from "../sessions.js";
 import { openAgenda } from "../store/agenda.js";
 import { buttonReceipt } from "../receipts.js";
+import { reviewLine } from "../review.js";
 import type { AgendaItem, Debrief, SessionStore, SessionVersion } from "../store/types.js";
 import { formatShort, nextSession } from "../time.js";
 import { minutes } from "./tool.js";
@@ -48,6 +49,8 @@ export interface PrepBriefView {
   series: string;
   // What the Bee button filed lately, or null.
   fromBee: string | null;
+  // "1 session to review", or null.
+  review: string | null;
   // The digest in one paragraph; null for Other or before the first digest.
   sinceLastSession: string | null;
   lastSessionLocal: string | null;
@@ -74,7 +77,7 @@ export function nextSessionView(series: Series, now = Date.now()) {
 
 export async function prepBrief(store: SessionStore, series: Series, now = Date.now()): Promise<PrepBriefView> {
   const latest = await store.getLatestSession(series.id);
-  const [agenda, takeaways, debriefs, brief, records, allSeries, digest] = await Promise.all([
+  const [agenda, takeaways, debriefs, brief, records, allSeries, digest, queue] = await Promise.all([
     store.listAgenda(series.id),
     latest ? store.listTakeaways(series.id, latest.start) : Promise.resolve([]),
     latest ? store.listDebriefs(series.id, latest.start) : Promise.resolve([]),
@@ -82,6 +85,7 @@ export async function prepBrief(store: SessionStore, series: Series, now = Date.
     store.listJournalRecords(),
     store.listSeries(),
     series.id === OTHER_ID ? Promise.resolve(null) : store.getDigest(series.id),
+    store.listReviewItems(),
   ]);
   const insights = latest?.insights ?? [];
   const relevant = brief?.relevantInsightIds.length
@@ -90,6 +94,7 @@ export async function prepBrief(store: SessionStore, series: Series, now = Date.
   return {
     series: series.name,
     fromBee: buttonReceipt(records, allSeries, now),
+    review: reviewLine(queue, now),
     sinceLastSession: digest?.since ? digestSentence(digest, now) : null,
     lastSessionLocal: latest ? formatLocal(Date.parse(latest.start), series.timezone) : null,
     shortSummary: latest ? latest.parts.map((p) => p.shortSummary).join(" / ") : null,

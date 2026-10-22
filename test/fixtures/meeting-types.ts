@@ -12,8 +12,8 @@ export const [therapy, coaching, acme, globex, other] = parseSeries(
       weekday: 2,
       windowStart: "17:00",
       windowEnd: "18:00",
+      // A reliable weekly slot: no keywords, so the slot alone files a session.
       spokenNames: ["therapy"],
-      captureKeywords: ["therapist"],
     },
     {
       id: "coaching",
