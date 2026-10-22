@@ -1,6 +1,7 @@
 // Local-time helpers for series timezones, and the next session computed
-// from a series' weekly schedule (never stored).
+// from a series' slots (never stored).
 import { hasSchedule, type Series } from "./series.js";
+import { instant, lastDatedDate, slotsBetween } from "./slots.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MINUTE = 60_000;
@@ -63,21 +64,13 @@ export function zonedTime(year: number, month: number, day: number, minutes: num
   return wall - offsetAt(guess);
 }
 
-// The next scheduled session that hasn't ended yet, or null when the series
-// has no schedule.
+// The next slot (weekly or dated) that hasn't ended yet, or null when the
+// series has none coming. Looks a week past the last dated entry, so a
+// skipped week still finds the slot after it.
 export function nextSession(series: Series, now = Date.now()): { start: number; end: number } | null {
-  if (!hasSchedule(series)) return null;
-  const startMin = toMinutes(series.windowStart);
-  const endMin = toMinutes(series.windowEnd);
-  const today = localParts(now, series.timezone);
-  // Walk calendar dates, not 24-hour steps, so DST days aren't skipped.
-  for (let d = 0; d <= 7; d++) {
-    const date = new Date(Date.UTC(today.year, today.month - 1, today.day + d));
-    if (date.getUTCDay() !== series.weekday) continue;
-    const [y, m, day] = [date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()];
-    const start = zonedTime(y, m, day, startMin, series.timezone);
-    const end = zonedTime(y, m, day, endMin, series.timezone);
-    if (end > now) return { start, end };
-  }
-  return null;
+  if (!hasSchedule(series) && !series.dated.length) return null;
+  const last = lastDatedDate(series);
+  const horizon = Math.max(now, last ? instant(last, "00:00", series.timezone) : now) + 8 * DAY;
+  const next = slotsBetween(series, now, horizon).find((s) => s.end > now);
+  return next ? { start: next.start, end: next.end } : null;
 }

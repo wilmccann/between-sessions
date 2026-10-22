@@ -11,8 +11,9 @@ import {
   type BeeTodo,
 } from "./bee/cli.js";
 import { hasSchedule, type Series } from "./series.js";
+import { localDate, slotsOn, type Slot } from "./slots.js";
 import type { SessionInput, SessionTag } from "./store/types.js";
-import { formatLocal, HOUR, localParts, MINUTE, toMinutes, zonedTime } from "./time.js";
+import { formatLocal, HOUR, MINUTE } from "./time.js";
 
 const LOOKBACK_DAYS = 21;
 
@@ -50,25 +51,21 @@ export function windowSession(parts: BeeConversation[], span: Span, minDurationM
   return { parts, start: parts[0].start_time, end: Math.max(...parts.map((p) => p.end_time)) };
 }
 
-// The series' window on each scheduled date that has a conversation.
-export function scheduleSpans(conversations: BeeConversation[], series: Series): Span[] {
-  if (!hasSchedule(series)) return [];
-  const dates = new Map<string, Span>();
-  for (const c of conversations) {
-    const p = localParts(c.start_time, series.timezone);
-    if (p.weekday !== series.weekday) continue;
-    const key = `${p.year}-${p.month}-${p.day}`;
-    if (dates.has(key)) continue;
-    dates.set(key, {
-      from: zonedTime(p.year, p.month, p.day, toMinutes(series.windowStart), series.timezone),
-      to: zonedTime(p.year, p.month, p.day, toMinutes(series.windowEnd), series.timezone),
-    });
-  }
-  return [...dates.values()];
+// A slot's span, with the slot it came from.
+export interface SlotSpan extends Span {
+  slot: Slot;
 }
 
-// Sessions from the series' schedule window, newest first. Each is a span
-// on its own date, not "everything that day".
+// One span per slot (weekly or dated) on each local date that has a
+// conversation starting on it.
+export function scheduleSpans(conversations: BeeConversation[], series: Series): SlotSpan[] {
+  if (!hasSchedule(series) && !series.dated.length) return [];
+  const dates = new Set(conversations.map((c) => localDate(c.start_time, series.timezone)));
+  return [...dates].flatMap((date) => slotsOn(series, date).map((slot) => ({ from: slot.start, to: slot.end, slot })));
+}
+
+// Sessions from the series' slots, newest first. Each is a span on its own
+// date, not "everything that day".
 export function matchSessions(conversations: BeeConversation[], series: Series): Session[] {
   return scheduleSpans(conversations, series)
     .map((span) => windowSession(partsInSpan(conversations, span, series.minOverlapMinutes), span, series.minDurationMinutes))
