@@ -9,12 +9,14 @@
     "spokenNames": ["coaching"],
     "captureKeywords": ["coach"],
     "minDurationMinutes": 30,
-    "insightWindowHours": 72
+    "insightWindowHours": 72,
+    "dated": [{ "date": "2026-11-24", "skip": true }]
   },
   {
     "id": "acme-interview",
     "name": "Acme interview",
     "timezone": "America/Los_Angeles",
-    "captureKeywords": ["acme"]
+    "captureKeywords": ["acme"],
+    "dated": [{ "date": "2026-11-05", "start": "10:00", "end": "10:45" }]
   }
 ]

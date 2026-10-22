@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { windowCandidates } from "../src/detect.js";
 import { markerCandidates } from "../src/markers.js";
@@ -66,6 +67,11 @@ describe("dated sessions: config", () => {
       { date: "2026-10-21", start: "10:20", end: "11:00" },
       { date: "2026-10-28", skip: true },
     ]);
+  });
+
+  it("parses the example config's dated entries", () => {
+    const example = parseSeries(readFileSync("series.example.json", "utf8"));
+    assert.deepEqual(example.map((s) => s.dated.length), [1, 1]);
   });
 
   it("rejects bad dates and times with a clear message", () => {
