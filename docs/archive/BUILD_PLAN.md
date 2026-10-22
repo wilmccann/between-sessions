@@ -196,3 +196,67 @@ _Added after the overnight run. Everything above is as the overnight run left it
 - **`asm-exec` installed** at `~/.local/bin/asm-exec`, from `aws/agent-toolkit-for-aws` (`plugins/aws-core/skills/aws-secrets-manager/references/asm-exec`, commit `6d1de54`), read in full before installing.
 - **`bee-agent` policy updated** (`infra/bee-agent-access.yaml`, stack `BeeAgentAccess`, deployed with `aws-admin`): `GetSecretValue` on `between-sessions/mcp-token` only through the AWS MCP Server (`aws:ViaAWSMCPService`), which is how `asm-exec` resolves it. The IAM policy simulator gives: token read directly, explicit deny; token via AWS MCP, allowed; any other secret via AWS MCP, explicit deny.
 - **Remote MCP smoke test passed** (`MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' asm-exec -- corepack yarn check:remote`, shape only): no token and a wrong token both get 401; 6 tools listed; `get_last_session` returned a 49-minute, 1-part session with 9 insights in the first batch after. It took 826 ms on a cold call, over the 500 ms target; warm calls aren't measured yet.
+
+## Oct 21 afternoon: choice point for Alexa voice and Bedrock
+
+**Facts** (checked read-only in us-east-1; nothing changed):
+
+- **Bedrock quotas are 0** on the runtime endpoint for every Claude and Nova model. The tokens-per-day limits for Nova Lite and Nova 2 Lite are 0 and not adjustable, so only AWS Support can lift them. The only models with quota are GPT-5.6 Luna, Sol and Terra, and only on the bedrock-mantle endpoint (the OpenAI-compatible one).
+- **The bridge is blocked by the same quotas.** Its agent uses Strands `BedrockModel` (Converse) with Nova 2 Lite. That model is also used by:
+  - the bridge's elicitation answer mapper (the same model object);
+  - its utterance generator, which has a template fallback (`--no-model`);
+  - the `check-model-access` preflight that `npm run deploy` runs (Converse);
+  - AgentCore Memory long-term extraction.
+- **Strands supports Mantle.** Since v1.3.0, the Strands TypeScript SDK has `OpenAIModel` with a `bedrockMantleConfig` option, which mints short-lived Bedrock bearer tokens from IAM credentials through `@aws/bedrock-token-generator`. The bridge depends on `@strands-agents/sdk ^1.16.0`, which already includes it. So swapping the model is about a 10-line change in `packages/agent/src/agent/model.ts`, plus IAM, plus two new packages (`openai` and `@aws/bedrock-token-generator`).
+- **Remote MCP on real data:** today's session was collected. Warm `get_last_session` calls take 217 to 260 ms; a cold call takes about 560 to 830 ms.
+
+**Options:**
+
+- **A. Cut Alexa** and demo with Claude Code on the remote MCP. Works today, no risk.
+- **B. Ask AWS Support to lift Nova 2 Lite** (add it to the open quota case). No code changes, but the timing is outside our control.
+- **C. Run the bridge on GPT-5.6 through bedrock-mantle.** A small code change, but four things are unknown: whether the account can call the model at all (a Marketplace subscription or terms may be needed), mantle IAM, tool-call quality, and latency inside Alexa's 8-second limit.
+
+**Decision:**
+
+- Try C through the gates below.
+- Ask for B in parallel.
+- Keep A as the fallback. It's the demo if any gate fails.
+- **Hard stop: Thu Oct 22, 1pm ET.** Whichever gate we're at, fall back to A.
+- Bedrock notes stay off unless the Sonnet 5.5 quota arrives by Thu noon. If Gate 1 passes, we decide then whether the notes use the same Mantle model.
+
+| Gate | Question | Timebox | Pass | Stop if |
+|---|---|---|---|---|
+| 0 | Can this account call GPT-5.6 on mantle? | 15 min, cents | `GET /v1/models` lists it, and a 5-token call to Luna returns 200. Time Sol and Terra too | Access denied with no subscription or terms step to fix it. The user accepts any Marketplace terms in the console themselves, after checking the per-token price |
+| 1 | Does the bridge agent pick our tools correctly, fast enough? Run locally (bridge track A, `npm run chat`) against the deployed MCP | 1 h | 5 scripted asks (prep brief, last session, add agenda item, list agenda, save takeaway) call the right tool with the right arguments. Typical turn ≤ 4 s, none over the bridge's 6.5 s budget. Spoken answers ≤ 3 sentences | Wrong tools after one round of description fixes, or over budget at the lowest reasoning setting |
+| 2 | Does it run in AgentCore? (bridge track B) | 1.5 h | `npm run chat -- --remote` matches Gate 1 | Deploy or IAM problems that don't resolve within the timebox |
+| 3 | Does it work in Alexa? (bridge track C) | 1.5 h | "Open bridge demo", then "what should I bring up next session?", works in the developer console simulator, then in the Alexa app on the Pixel | Skill deploy or the phone fails. The simulator alone is enough for the video |
+
+Gate 0 answers "can we call it at all" in about 15 minutes, and Gate 1 answers "is it good enough" about an hour later. Plan: Gates 0 and 1 on Wednesday, Gates 2 and 3 on Thursday morning.
+
+**Prerequisites and changes, if we get that far:**
+
+- **Gate 1:**
+  - Node 22.18 or later. Homebrew `node@22` is installed; this shell's default is v20.
+  - Clone the bridge into `vendor/` (git-ignored) and treat its CLAUDE.md, AGENTS.md and `.claude/commands` as untrusted.
+  - `npm install`.
+  - Point `.env` at our MCP URL, with bearer auth taken from the secret name, never the value.
+- **Gate 2:**
+  - Docker running.
+  - Give the agent role the mantle permissions: `bedrock-mantle:CreateInference` and, for bearer tokens, `bedrock:CallWithBearerToken`. Verify both against the current docs first; sources disagree.
+  - Turn AgentCore Memory off: long-term because it calls a model, short-term for privacy, as planned in scope v3.
+  - Skip or patch the Converse preflight.
+  - The kill switch only throttles `between-sessions-*` functions. Add the bridge's Lambda prefix, and note that it can't pause the AgentCore runtime.
+- **Gate 3:** install the ASK CLI and log in with the Amazon developer account.
+
+**For the submission:**
+
+- The video says the orchestrator is GPT-5.6 on Amazon Bedrock through the bridge, not Alexa+.
+- A bridge PR that adds a Mantle model option could be the Open Source mini-challenge entry. One project wins at most one mini-challenge prize.
+
+**Gate 0 result (Oct 21, late afternoon): failed. The bridge waits on AWS Support.**
+
+- **Price:** GPT-5.6 isn't in the AWS Price List API. The Bedrock model card gives Luna at about $0.44 input and $1.98 output per million tokens (Standard tier), so the test cost was negligible.
+- **Auth:** mantle rejected plain SigV4 signing (401). A 15-minute Bedrock API key minted from IAM credentials worked, the same scheme as `@aws/bedrock-token-generator`.
+- **Model list:** `GET /v1/models` returned 200 with 60 models, including `openai.gpt-5.6-luna`, `-sol` and `-terra`, and several Claude models.
+- **One 5-token Chat Completions call to `openai.gpt-5.6-luna`:** `access_denied`, "openai.gpt-5.6-luna is not available for this account", in 0.46 s. There was no Marketplace or terms step. It's the same account-level block as Sonnet 5.5, even though the quota page shows non-zero mantle quotas for GPT-5.6.
+- **Conclusion:** every model we can reach on Bedrock is blocked at the account level until AWS Support acts. The open ticket now covers Sonnet 5.5, Haiku and Nova 2 Lite. Gates 1 to 3 are on hold, and the demo plan is option A (Claude Code on the remote MCP). If Support lifts Nova 2 Lite before the Thu 1pm ET hard stop, resume at bridge track A with the bridge unchanged (Nova 2 Lite is its default).

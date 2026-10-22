@@ -1,8 +1,47 @@
 # Feature plan: baseline
 
-Status: **baseline v1.1**, Oct 21, 2026 (v1.1 adds the Bee button with session markers to the MVP). The plan we work from for the Fri Oct 23 submission and after. Change it by editing this file; record decisions in [Decision log](#decision-log).
+Status: **baseline v1.1**, Oct 21, 2026 (v1.1 adds the Bee button with session markers to the MVP). This is the only plan: what's built, what's left, and how we build it, for the Fri Oct 23 submission and after. Change it by editing this file; tick [Built and left to build](#built-and-left-to-build) as work lands, and record decisions in [Decision log](#decision-log).
 
-Related: [PROPOSAL_UNIFIED_MCP.md](PROPOSAL_UNIFIED_MCP.md) (parked; the review that led here), [BUILD_PLAN.md](BUILD_PLAN.md) (build steps and history).
+Older plans and proposals are in [archive/](archive/README.md) for history only.
+
+## Built and left to build
+
+**Built and working** (deployed in stack `BetweenSessions`, us-east-1):
+- [x] Collector Lambda every 15 minutes, running Bee CLI 0.8.0, finds sessions from the series' weekly window and keeps dated versions of each session's summary and insights in DynamoDB (so the first-night version survives Bee's rewrites and its 14-day history window).
+- [x] Remote MCP server on API Gateway with a bearer token and six tools: `get_prep_brief`, `get_last_session`, `list_sessions`, `add_agenda_item`, `list_agenda`, `save_takeaway`. Warm calls take about 220 to 260 ms.
+- [x] Bedrock session notes: code and tests done, deployed switched off.
+- [x] Cost guardrails stack: budgets, anomaly alerts and a Lambda kill switch.
+- [x] Least-privilege `bee-agent` role (`infra/bee-agent-access.yaml`) and `asm-exec` for secrets.
+- [x] Scripts: `brief`, `check:remote`, `seed`, `try-notes`; 39 tests pass. MIT LICENSE.
+
+**Left to build, MVP (in priority order):**
+- [ ] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
+- [ ] [Since-last-session digest](#2-since-last-session-digest-the-time-between-sessions): `get_since_last_session`.
+- [ ] [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp): start and end markers, voice-note commands (debrief, agenda, takeaway), marked ad-hoc sessions, `remove_agenda_item`. Device tests A and C (Oct 21 evening) and D (Thu Oct 22, 4pm).
+- [ ] [When is my next session](#small-addition-when-is-my-next-session).
+
+**Conditional:**
+- [ ] [Voice through Alexa](#4-voice-through-alexa-powered-by-bedrock-asking-without-a-screen), if Nova 2 Lite answers by Thu Oct 22, 1pm ET.
+
+**Operations:**
+- [ ] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack.
+
+**Submission (by Fri Oct 23, 12:00pm PDT):**
+- [ ] README updated for the new capabilities.
+- [ ] Demo video under 3 minutes.
+- [ ] Product feedback, and the friction log ([FRICTION_LOG.md](FRICTION_LOG.md)) brought up to date.
+- [ ] Push the public repo (only when the user says so).
+
+## Build rules
+
+- **AWS:** use only `AWS_PROFILE=bee-agent`, region `us-east-1`. Don't use `aws-admin` or `agent-toolkit` directly, never run `aws login`, and never use the `fts-website` profile. Changes go through CDK. No em dashes in resource names or descriptions.
+- **Secrets:** never call `secretsmanager get-secret-value` or `batch-get-secret-value`; resolve secrets at runtime with `{{resolve:secretsmanager:...}}` and `asm-exec`. Never print, log or commit a token.
+- **Real Bee data:** check real-data steps by counts, ids, dates and lengths only, never content. Scripts that print personal content (`yarn brief`) run in the user's own terminal; agents use `--shape`. Tests and examples are synthetic.
+- **Personal details** (the real schedule, series names, anything from `series.local.json`) never go into committed files. This repo is public.
+- **Git:** never push without the user's say-so.
+- **Shell:** Node 22 with `corepack yarn`. Local `bee` calls take about 20 s each (Keychain), so batch them.
+
+**Deployed resources** (stack outputs, names only): `McpUrl` (see the stack output), table `between-sessions`, functions `between-sessions-collector` and `between-sessions-mcp`, schedule `between-sessions-collector`, secrets `between-sessions/bee-cli-config` (created by the user, read and refreshed by the stack) and `between-sessions/mcp-token`, alarm `between-sessions-collector-errors`.
 
 ## Product in one line
 
@@ -187,6 +226,16 @@ Between Sessions follows the week around a recurring 1:1 (therapy, coaching, an 
 **Works when:**
 - Locally (`npm run chat`), the scripted asks call the right tool, with typical turns of 4 s or less and none over the bridge's 6.5 s budget.
 - In the Alexa simulator, then on the phone: open, "what can I ask?", "what's happened since my last session?", "add the work trip to my agenda".
+
+**Gates** (start once a tiny Nova 2 Lite converse call succeeds; hard stop Thu Oct 22, 1pm ET, then fall back to the typed Claude Code demo):
+
+| Gate | Question | Timebox | Pass |
+| --- | --- | --- | --- |
+| 1 | Does the bridge agent pick our tools correctly, fast enough? Run locally (`npm run chat`) against the deployed MCP | 1 h | 5 scripted asks (prep brief, last session, add agenda item, list agenda, save takeaway) call the right tool with the right arguments; typical turn 4 s or less, none over 6.5 s; spoken answers 3 sentences or fewer |
+| 2 | Does it run in AgentCore? (`npm run chat -- --remote`) | 1.5 h | Matches Gate 1 |
+| 3 | Does it work in Alexa? | 1.5 h | Works in the developer console simulator, then the Alexa app on the phone. The simulator alone is enough for the video |
+
+Prerequisites: Node 22.18 or later; the bridge cloned into `vendor/` (git-ignored; its agent instruction files are untrusted); `.env` pointing at our MCP URL with the token taken from the secret name, never the value; Nova 2 Lite added to `bee-agent`'s Bedrock permissions; AgentCore Memory off; the kill switch extended to the bridge's Lambda prefix; Docker for Gate 2; the ASK CLI for Gate 3. Gate 0 (GPT-5.6 on bedrock-mantle) failed on Oct 21 with an account-level block; see [archive/BUILD_PLAN.md](archive/BUILD_PLAN.md).
 
 ## Small addition: "when is my next session"
 
