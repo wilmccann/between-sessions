@@ -14,7 +14,6 @@ import type { ReviewState } from "./review-ui.js";
 
 export const MAX_QUERY = 200;
 const KEYWORD_LIMIT = 50;
-const SESSIONS_PER_SERIES = 20; // as on the page
 
 // Lowercase, no punctuation or symbols, single spaces.
 export const normalize = (s: string) =>
@@ -95,7 +94,7 @@ export async function exactSearch(q: string, scope: SearchScope, state: ReviewSt
   const ids = (xs: string[]): Field[] => xs.map((value) => ({ label: "id", value }));
   const stored = new Map<string, string[]>();
   for (const s of state.series) {
-    for (const v of await store.listSessions(s.id, SESSIONS_PER_SERIES)) stored.set(refId(v), v.parts.map((p) => p.shortSummary));
+    for (const v of await store.listSessions(s.id, Infinity)) stored.set(refId(v), v.parts.map((p) => p.shortSummary));
   }
 
   const marty: Doc[] = [

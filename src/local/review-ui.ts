@@ -37,8 +37,6 @@ import { exactSearch, keywordSearch, MAX_QUERY, neuralSearch } from "./search.js
 import { scheduleRoute } from "./schedule-ui.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const SESSIONS_PER_SERIES = 20;
-const LOG_LIMIT = 50; // markers and voice notes, newest first
 
 const schedule = (s: Series) => (hasSchedule(s) ? `${WEEKDAYS[s.weekday]} ${s.windowStart} to ${s.windowEnd}` : "unscheduled");
 
@@ -64,7 +62,7 @@ export async function reviewState(store: SessionStore, opts: ReviewStateOptions 
       series.map(async (s) => ({
         seriesId: s.id,
         series: s.name,
-        sessions: (await store.listSessions(s.id, SESSIONS_PER_SERIES)).map((v) => ({
+        sessions: (await store.listSessions(s.id, Infinity)).map((v) => ({
           id: refId(v),
           at: v.start,
           when: when(v.start, s.id),
@@ -104,7 +102,7 @@ export async function reviewState(store: SessionStore, opts: ReviewStateOptions 
     series: series.map((s) => ({ id: s.id, name: s.name, schedule: schedule(s), spokenNames: s.spokenNames })),
     sessions,
     markers: markers
-      .slice(-LOG_LIMIT)
+      .slice()
       .reverse()
       .map((m) => ({
         at: m.at,
@@ -116,7 +114,7 @@ export async function reviewState(store: SessionStore, opts: ReviewStateOptions 
         lookups: [beeJournal(m.journalId), ...db(dynamoGet, itemKeys.marker(m))],
       })),
     voiceNotes: notes
-      .slice(-LOG_LIMIT)
+      .slice()
       .reverse()
       .map((r) => ({
         at: r.at,
@@ -152,7 +150,7 @@ export type ReviewState = Awaited<ReturnType<typeof reviewState>>;
 export async function sessionSummary(store: SessionStore, id: string) {
   const ref = parseRefId(id);
   if (!ref) return null;
-  const v = (await store.listSessions(ref.seriesId, 50)).find((x) => x.start === ref.start);
+  const v = (await store.listSessions(ref.seriesId, Infinity)).find((x) => x.start === ref.start);
   return v ? { id: refId(v), shortSummary: v.parts.map((p) => p.shortSummary).filter(Boolean).join("\n") } : null;
 }
 

@@ -71,7 +71,7 @@ export async function findTarget(store: SessionStore, id: string, series: Series
   if (!ref) return null;
   const item = (await store.listReviewItems()).find((i) => i.seriesId === ref.seriesId && i.start === ref.start);
   if (item && !item.filed) return { kind: "item", item };
-  const [v] = (await store.listSessions(ref.seriesId, 50)).filter((x) => x.start === ref.start);
+  const [v] = (await store.listSessions(ref.seriesId, Infinity)).filter((x) => x.start === ref.start);
   return v ? { kind: "session", ref, end: v.end } : null;
 }
 
@@ -118,7 +118,7 @@ export async function retag(
   const beforeOld = await openCount(store, ref.seriesId);
 
   if (to === "not-session") {
-    const before = (await store.listSessions(ref.seriesId, 50)).find((v) => v.start < ref.start);
+    const before = (await store.listSessions(ref.seriesId, Infinity)).find((v) => v.start < ref.start);
     // With no session before, your notes stay under Other at the same time.
     const keepOn: SessionRef = before ? { seriesId: ref.seriesId, start: before.start } : { seriesId: OTHER_ID, start: ref.start };
     const moved = await store.rejectSession(ref, keepOn);

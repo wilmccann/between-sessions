@@ -12,10 +12,9 @@ import type { SessionStore } from "../store/types.js";
 import { DAY, formatShort, toMinutes } from "../time.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const BACK_DAYS = 14; // the calendar's default range, and Bee's history
+const BACK_DAYS = 14; // Bee's history, and the calendar's earliest default start
 const AHEAD_DAYS = 7;
-const MAX_RANGE_DAYS = 120;
-const SESSIONS_PER_SERIES = 200;
+const MAX_RANGE_DAYS = 3660; // only a guard against a mistyped year
 
 export const PAST_WARNING =
   "The collector re-checks recent conversations, so this can re-file a past session (sessions you confirmed or marked are kept).";
@@ -111,7 +110,10 @@ export interface CalendarEntry {
 export async function scheduleState(store: SessionStore, range: { from?: string; to?: string } = {}, now = Date.now()) {
   const series = await store.listSeries();
   const today = localDate(now, defaultTimezone(series));
-  const from = range.from || addDays(today, -BACK_DAYS);
+  const sessionsOf = new Map(await Promise.all(series.map(async (s) => [s.id, await store.listSessions(s.id, Infinity)] as const)));
+  // By default, from the first filed session (or two weeks back, if earlier).
+  const firsts = series.flatMap((s) => sessionsOf.get(s.id)!.map((v) => localDate(Date.parse(v.start), s.timezone)));
+  const from = range.from || [addDays(today, -BACK_DAYS), ...firsts].sort()[0];
   const to = range.to || addDays(today, AHEAD_DAYS);
   if (!realDate(from) || !realDate(to)) throw new ScheduleError(400, "Use dates as YYYY-MM-DD for from and to");
   if (to < from) throw new ScheduleError(400, "The range ends before it starts");
@@ -121,7 +123,7 @@ export async function scheduleState(store: SessionStore, range: { from?: string;
   for (const s of series) {
     const slots = slotsBetween(s, instant(from, "00:00", s.timezone), instant(addDays(to, 1), "00:00", s.timezone));
     if (!slots.length) continue;
-    const sessions = await store.listSessions(s.id, SESSIONS_PER_SERIES);
+    const sessions = sessionsOf.get(s.id)!;
     for (const slot of slots) {
       const v = sessions.find((x) => Date.parse(x.start) < slot.end && Date.parse(x.end) > slot.start);
       const minutes = lengthOf(slot.startTime, slot.endTime);

@@ -314,7 +314,15 @@ describe("schedule page: calendar", () => {
     assert.deepEqual([state.from, state.today, state.to], ["2026-10-08", "2026-10-22", "2026-10-29"]);
     await assert.rejects(scheduleState(store, { from: "2026-10-29", to: "2026-10-01" }, now), /ends before it starts/);
     assert.equal((await call(port, "/api/schedule?from=yesterday&to=2026-10-29", { token })).status, 400);
-    assert.equal((await call(port, "/api/schedule?from=2026-01-01&to=2026-12-31", { token })).status, 400);
+    assert.equal((await call(port, "/api/schedule?from=2026-01-01&to=2026-12-31", { token })).status, 200);
+    assert.equal((await call(port, "/api/schedule?from=2016-01-01&to=2026-12-31", { token })).status, 400);
+  });
+
+  it("starts the default range at the first filed session when that is older", async () => {
+    await store.recordSession(mentoring.id, session("2026-07-01T10:05:00-04:00", "2026-07-01T10:55:00-04:00", 910002), "2026-07-01T11:30:00.000Z");
+    const state = await scheduleState(store, {}, now);
+    assert.deepEqual([state.from, state.to], ["2026-07-01", "2026-10-29"]);
+    assert.equal(state.calendar.find((c) => c.date === "2026-07-01")?.filed?.id, `synthetic-mentoring@${new Date("2026-07-01T10:05:00-04:00").toISOString()}`);
   });
 
   it("warns on a calendar slot shorter than the minimum", async () => {
