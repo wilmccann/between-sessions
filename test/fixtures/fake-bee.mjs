@@ -4,6 +4,17 @@
 import { readFileSync } from "node:fs";
 
 const [resource, command, ...rest] = process.argv.slice(2);
+// `stream --json --types ...` prints the synthetic events in stream.jsonl and
+// exits; asking for utterance, location or todo events is an error.
+if (resource === "stream") {
+  const types = process.argv[process.argv.indexOf("--types") + 1] ?? "";
+  if (!process.argv.includes("--json") || /utterance|location|todo/.test(types)) {
+    console.error(`Unexpected stream arguments: ${process.argv.slice(3).join(" ")}`);
+    process.exit(2);
+  }
+  process.stdout.write(readFileSync(new URL("stream.jsonl", import.meta.url), "utf8"));
+  process.exit(0);
+}
 if (command !== "list" || !rest.includes("--json")) {
   console.error(`Unknown ${resource} subcommand: ${command}`);
   process.exit(1);
