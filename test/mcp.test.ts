@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { beforeEach, describe, it } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { CAPABILITIES } from "../src/mcp/capabilities.js";
 import { createMcpServer, type PrepBriefView, type SessionView } from "../src/mcp/server.js";
 import { fileStore } from "../src/store/file-store.js";
 import type { TableStore } from "../src/store/table-store.js";
@@ -54,6 +55,13 @@ describe("MCP tools", () => {
       "save_takeaway",
     ]);
     for (const t of tools) assert.ok((t.description ?? "").length > 40, t.name);
+  });
+
+  it("registers exactly the tools in the capability list", async () => {
+    const { tools } = await client.listTools();
+    const listed = CAPABILITIES.flatMap((c) => c.tools.map((t) => t.name));
+    assert.equal(new Set(listed).size, listed.length);
+    assert.deepEqual(tools.map((t) => t.name).sort(), [...listed].sort());
   });
 
   it("answers plainly when nothing is stored yet", async () => {
