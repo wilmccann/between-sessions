@@ -67,6 +67,7 @@ export const itemKeys = {
   marker: (m: { at: string; journalId: string }) => ({ PK: MARKERS, SK: `M#${m.at}#${m.journalId}` }),
   journal: (r: { at: string; journalId: string }) => ({ PK: JOURNALS, SK: `J#${r.at}#${r.journalId}` }),
   review: (r: { start: string; seriesId: string }) => ({ PK: REVIEW, SK: reviewSk(r) }),
+  claim: (conversationId: number) => ({ PK: CLAIMS, SK: claimSk(conversationId) }),
 };
 // Items that belong to one session and move with it.
 const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];

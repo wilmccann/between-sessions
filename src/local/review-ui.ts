@@ -26,6 +26,8 @@ import { fileStore } from "../store/file-store.js";
 import { itemKeys } from "../store/table-store.js";
 import type { SessionStore } from "../store/types.js";
 import { formatShort } from "../time.js";
+import { BeeCliError, BeeData, DEFAULT_DAYS, MAX_DAYS } from "./bee-data.js";
+import { beeConversation, beeJournal, dynamoGet, dynamoQuery, type Lookup } from "./lookups.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SESSIONS_PER_SERIES = 20;
@@ -33,26 +35,7 @@ const LOG_LIMIT = 50; // markers and voice notes, newest first
 
 const schedule = (s: Series) => (hasSchedule(s) ? `${WEEKDAYS[s.weekday]} ${s.windowStart} to ${s.windowEnd}` : "unscheduled");
 
-// Lookup commands to paste into a terminal: Bee's own record for an id, and
-// the table item behind a row. Your terminal's AWS profile and region apply.
-export interface Lookup {
-  label: string;
-  command: string;
-}
-export const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
-const beeConversation = (id: string | number): Lookup => ({ label: `bee ${id}`, command: `bee conversations get ${shellQuote(String(id))} --json` });
-const beeJournal = (id: string): Lookup => ({ label: "bee", command: `bee journals get ${shellQuote(id)} --json` });
-const attr = (v: string) => ({ S: v });
-const dynamoGet = (table: string, key: { PK: string; SK: string }): Lookup => ({
-  label: "db",
-  command: `aws dynamodb get-item --table-name ${shellQuote(table)} --key ${shellQuote(JSON.stringify({ PK: attr(key.PK), SK: attr(key.SK) }))}`,
-});
-const dynamoQuery = (table: string, key: { PK: string; prefix: string }): Lookup => ({
-  label: "db",
-  command:
-    `aws dynamodb query --table-name ${shellQuote(table)} --key-condition-expression 'PK = :pk AND begins_with(SK, :sk)' ` +
-    `--expression-attribute-values ${shellQuote(JSON.stringify({ ":pk": attr(key.PK), ":sk": attr(key.prefix) }))}`,
-});
+export { shellQuote, type Lookup } from "./lookups.js";
 
 export interface ReviewStateOptions {
   table?: string; // the DynamoDB table; no db lookups without one (the file store)
@@ -197,9 +180,14 @@ function send(res: ServerResponse, status: number, body: unknown) {
   res.end(isHtml ? body : JSON.stringify(body));
 }
 
+export interface ReviewServerOptions extends ReviewStateOptions {
+  bee?: BeeData; // the Bee data reader and its memory cache; one per server by default
+}
+
 // The review page's HTTP server. Listen on 127.0.0.1 only.
-export function reviewServer(store: SessionStore, token: string, opts: ReviewStateOptions = {}): Server {
+export function reviewServer(store: SessionStore, token: string, opts: ReviewServerOptions = {}): Server {
   const expected = digest(token);
+  const beeData = opts.bee ?? new BeeData(store, { table: opts.table });
   const server = createServer(async (req, res) => {
     try {
       const port = (server.address() as AddressInfo).port;
@@ -209,9 +197,10 @@ export function reviewServer(store: SessionStore, token: string, opts: ReviewSta
       const header = req.headers["x-review-token"];
       const presented = (typeof header === "string" ? header : undefined) ?? url.searchParams.get("token") ?? "";
       if (!timingSafeEqual(digest(presented), expected)) throw new HttpError(401, "Missing or wrong token");
-      await route(store, req, res, url, opts);
+      await route(store, beeData, req, res, url, opts);
     } catch (err) {
       if (err instanceof HttpError) return send(res, err.status, { error: err.message });
+      if (err instanceof BeeCliError) return send(res, 502, { error: err.message });
       console.error("review page request failed:", (err as Error).name);
       send(res, 500, { error: "Something went wrong" });
     }
@@ -219,10 +208,29 @@ export function reviewServer(store: SessionStore, token: string, opts: ReviewSta
   return server;
 }
 
-async function route(store: SessionStore, req: IncomingMessage, res: ServerResponse, url: URL, opts: ReviewStateOptions) {
+const TEXT_TYPES = ["journal", "conversation", "insight", "daily", "fact"];
+
+async function route(store: SessionStore, beeData: BeeData, req: IncomingMessage, res: ServerResponse, url: URL, opts: ReviewStateOptions) {
   const path = url.pathname;
+  const q = url.searchParams;
   if (req.method === "GET" && path === "/") return send(res, 200, PAGE);
   if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store, opts));
+  if (req.method === "GET" && path === "/api/bee") {
+    const days = Number(q.get("days") ?? DEFAULT_DAYS);
+    if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new HttpError(400, `days must be a whole number from 1 to ${MAX_DAYS}`);
+    return send(res, 200, await beeData.rows(days, q.get("refresh") === "1"));
+  }
+  if (req.method === "GET" && path === "/api/bee/text") {
+    const type = q.get("type") ?? "";
+    const id = q.get("id") ?? "";
+    const source = q.get("source") || undefined;
+    if (!TEXT_TYPES.includes(type) || !id || (source !== undefined && source !== "keyword" && source !== "neural")) {
+      throw new HttpError(400, "Send type, id and (for a search hit) source");
+    }
+    const parts = await beeData.text(type, id, source);
+    if (!parts) throw new HttpError(404, "That row isn't in the Bee data read (try Refresh or search again)");
+    return send(res, 200, { type, id, parts });
+  }
   if (req.method === "GET" && path === "/api/summary") {
     const summary = await sessionSummary(store, url.searchParams.get("id") ?? "");
     if (!summary) throw new HttpError(404, "No stored session with that id");
