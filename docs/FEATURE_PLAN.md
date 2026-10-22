@@ -115,7 +115,7 @@ Today, a request that names no series goes to whichever series the store lists f
 
 **What you experience:**
 - In Claude Code, typing `/` lists `prep`, `since`, `agenda`, `takeaway` and `help`.
-- Asking "what can I ask?" (typed, or to Alexa) returns a menu short enough to speak: three or four items with one example each.
+- Asking "what can I ask?" (typed, or to Alexa) returns a menu short enough to speak: four items (prep, since, agenda, takeaway) with one example each. Looking back at the last session and reviewing guesses are in the server instructions' "Also" line, not the spoken menu.
 - After every answer, one suggested next step ("Want to add that to your agenda?").
 - Out-of-scope questions get a boundary, not a vague failure: "I see your sessions, including any you mark with the Bee button. For anything else Bee knows, use the Bee app."
 
@@ -222,7 +222,19 @@ Today, a request that names no series goes to whichever series the store lists f
 | --- | --- | --- | --- |
 | A: explicit markers | Oct 21 evening | Hold: "Start coaching session." Talk 3 min. Hold: "End coaching session." Double-press. | Both notes become `READY` journals; whether `created_at` is when you spoke or when Bee finished; whether the conversation sits between the markers; how fast double-press completes it |
 | C: double press alone | Oct 21 evening | Double-press. Talk 2 min. Double-press. | Whether double press leaves any trace (expected: none) |
-| D: combined | Thu Oct 22, 4pm (the test coaching slot; Fri is the spare) | Hold: "Start coaching session." Talk a few minutes. Hold: "End coaching session." Hold: "Debrief: ..." | Markers, debrief and timing together. Optional: seed a "coaching" series (Thu 16:00 to 17:00) first, so the window fallback is checked against the markers |
+| D: combined | Thu Oct 22, 4pm (Fri is the spare) | The script below | Markers, debrief, agenda, a review item and timing together, on the deployed build. No seeding: "Start coaching session" creates an unscheduled Coaching series |
+
+**Test D script** (normal voice, a few seconds between holds; note the phone-clock time of each):
+1. *(hold)* "Start coaching session." Talk for 3 to 4 minutes.
+2. *(hold)* "End coaching session."
+3. *(hold)* "Debrief: the test went fine."
+4. *(hold)* "Agenda for coaching: bring up the work trip."
+5. For a real review item: *(hold)* "Start session." Talk for 2 minutes. *(hold)* "End session." With two series and no slot at that hour, this pair is filed under Other, pending review.
+6. Within about 15 minutes the next brief opens with what was filed, and `review_sessions` lists the unnamed session. Record the retag for the video: "That was coaching."
+
+Say "session", not "call" ("Start a coaching call" names a separate "coaching call" series). Always name the series in the first pair: with only one series, an unnamed start goes to that series.
+
+**Findings Oct 22:** the 4 voice notes Bee holds (Oct 21 evening) contain no command words, so test D is the first real-device test of the parser. On 20 likely phrasings (including "Okay, start...", "Starting...", "And coaching session" for a misheard "End", and "The brief:" for "Debrief:") the deployed parser gives the intended command.
 
 **Works when:**
 - With synthetic fixtures: start and end notes produce a session with exactly that span from the overlapping conversations; missing-half rules hold; a debrief, an agenda note and a takeaway note each file once; an unrecognized note is reported.
@@ -250,7 +262,8 @@ Today, a request that names no series goes to whichever series the store lists f
 | Marker with a name | "Start session: coaching" | Certain: filed, no review |
 | Marker without a name, several series | "Start session" | Filed under the best guess, and queued for review |
 | Schedule slot plus a series keyword in Bee's short summary | The therapy slot, and "therapist" in the summary | High: filed |
-| Schedule slot only | The coaching slot in an off week | Low: queued, not filed (no more fake sessions) |
+| Schedule slot only, series has capture keywords | The coaching slot in an off week | Low: queued, not filed (no more fake sessions) |
+| Schedule slot only, series has no capture keywords | A reliable weekly therapy slot | Filed as before, so a dependable slot doesn't need weekly review |
 | Keyword only | "Acme" and "interview" in a 45-minute conversation | Low: queued |
 | Pattern from past confirmations | The last 3 confirmed coaching sessions were Thursdays around 16:00 | Raises confidence |
 | Optional: Nova Lite at collection time | Reads the short summary, returns a series and confidence | Breaks ties; never in the tool path |
@@ -361,3 +374,4 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 21 | AWS Support denied Sonnet 5.5; approved Nova Lite and Nova 2 Lite (propagating). Bedrock's role is the Alexa agent model, plus optional topic naming at collect time. |
 | Oct 21 | Session tagging and review is MVP: every session gets a tag with a best guess, unsure guesses wait in a review queue, and `review_sessions` and `retag_session` work in Claude Code, by Bee button and (once it works) by Alexa. Pending guesses store no summary until confirmed. The review web app waits until after Friday because it needs Cognito sign-in. |
 | Oct 22 | Alexa voice is cut for the submission: every Nova tokens-per-day quota in us-east-1 was still 0 on Thursday morning, and Gates 1 to 3 couldn't finish before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. The MVP (menu, digest, Bee button, tagging and review, next session) and table protection are deployed. |
+| Oct 22 | Reviewed the overnight build's defaults and kept them: command words need a session word or known series name; a named start for a new name creates an unscheduled series; two markers give an exact span; debriefs attach within 3 hours; unnamed starts go to the slot's series or Other, pending review; a series without capture keywords files its schedule slot as before; 48-hour receipts in every brief; a four-item spoken menu; a todo count, not todo text, in the digest. Changed one: "Not a session" never deletes your words; with no session before, takeaways and debriefs are kept under Other. |
