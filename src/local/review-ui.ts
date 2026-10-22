@@ -311,11 +311,12 @@ async function edit(path, body) {
 
 // Move to another series, confirm the current one, or say it wasn't a session.
 function retagControls(id, currentSeriesId, confirmed) {
-  const select = el("select", { "aria-label": "Move to series" },
+  // Starts on a blank choice, so a stray click on Move does nothing.
+  const select = el("select", { "aria-label": "Move to series" }, el("option", { value: "" }, "Move to..."),
     state.series.filter((x) => x.id !== currentSeriesId).map((x) => el("option", { value: x.id }, x.name)));
   return el("span", {},
     select,
-    el("button", { onclick: () => edit("/api/retag", { id, series: select.value }) }, "Move"),
+    el("button", { onclick: () => { if (select.value) edit("/api/retag", { id, series: select.value }); } }, "Move"),
     confirmed ? null : el("button", { onclick: () => edit("/api/confirm", { id }) }, "Confirm"),
     el("button", { onclick: () => {
       if (confirm("Mark this as not a session? Its stored summaries are deleted; your notes are kept.")) edit("/api/retag", { id, notASession: true });
@@ -332,7 +333,8 @@ function agendaActions(i, g) {
 function render() {
   const s = state;
   const app = document.getElementById("app");
-  app.replaceChildren(
+  // The per-series sections are nested arrays; replaceChildren would print them as text.
+  app.replaceChildren(...[
     el("h2", {}, "Review queue"),
     el("p", {}, s.review.line || "Nothing to review."),
     table(["Id", "When", "Minutes", "Guess", "Filed", "Reason", "Bee id", "Expires in", ""],
@@ -355,7 +357,7 @@ function render() {
     el("h2", {}, "Voice notes"),
     table(["When", "Kind", "Status", "Series", "Reason", "Voice note"],
       s.voiceNotes.map((n) => [n.when, n.kind, n.status, n.series || "", n.reason || "", n.journal])),
-  );
+  ].flat(2));
 }
 
 async function load() {
