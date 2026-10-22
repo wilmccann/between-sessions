@@ -59,6 +59,15 @@ const TALLIES = "TALLIES";
 const REVIEW = "REVIEW";
 const reviewSk = (r: { start: string; seriesId: string }) => `R#${r.start}#${r.seriesId}`;
 const claimSk = (conversationId: number) => `CONV#${conversationId}`;
+
+// Item keys, shared with the review page's lookup commands.
+export const itemKeys = {
+  sessionVersions: (seriesId: string, start: string) => ({ PK: pk(seriesId), prefix: `SESSION#${start}#V#` }),
+  agenda: (a: { seriesId: string; createdAt: string; id: string }) => ({ PK: pk(a.seriesId), SK: `AGENDA#${a.createdAt}#${a.id}` }),
+  marker: (m: { at: string; journalId: string }) => ({ PK: MARKERS, SK: `M#${m.at}#${m.journalId}` }),
+  journal: (r: { at: string; journalId: string }) => ({ PK: JOURNALS, SK: `J#${r.at}#${r.journalId}` }),
+  review: (r: { start: string; seriesId: string }) => ({ PK: REVIEW, SK: reviewSk(r) }),
+};
 // Items that belong to one session and move with it.
 const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];
 
@@ -228,11 +237,11 @@ export class TableStore implements SessionStore {
   }
 
   async putReviewItem(item: ReviewItem) {
-    await this.table.put({ PK: REVIEW, SK: reviewSk(item), ...item });
+    await this.table.put({ ...itemKeys.review(item), ...item });
   }
 
   async deleteReviewItem(item: ReviewItem) {
-    await this.table.transact([{ delete: { PK: REVIEW, SK: reviewSk(item) } }]);
+    await this.table.transact([{ delete: itemKeys.review(item) }]);
   }
 
   async updateMarkers(atTimes: string[], seriesId: string | null) {
@@ -279,7 +288,7 @@ export class TableStore implements SessionStore {
       ...(from.source && { source: from.source }),
       ...(from.journalId && { journalId: from.journalId }),
     };
-    await this.table.put({ PK: pk(seriesId), SK: `AGENDA#${item.createdAt}#${item.id}`, ...item });
+    await this.table.put({ ...itemKeys.agenda(item), ...item });
     return item;
   }
 
@@ -288,7 +297,7 @@ export class TableStore implements SessionStore {
   }
 
   async removeAgendaItem(item: AgendaItem) {
-    await this.table.transact([{ delete: { PK: pk(item.seriesId), SK: `AGENDA#${item.createdAt}#${item.id}` } }]);
+    await this.table.transact([{ delete: itemKeys.agenda(item) }]);
   }
 
   async saveTakeaway(seriesId: string, sessionStart: string, text: string, from: FromBee = {}) {
@@ -319,7 +328,7 @@ export class TableStore implements SessionStore {
   }
 
   async putMarker(m: Marker) {
-    await this.table.put({ PK: MARKERS, SK: `M#${m.at}#${m.journalId}`, ...m });
+    await this.table.put({ ...itemKeys.marker(m), ...m });
   }
 
   async listMarkers() {
@@ -344,7 +353,7 @@ export class TableStore implements SessionStore {
   }
 
   async putJournalRecord(r: JournalRecord) {
-    await this.table.put({ PK: JOURNALS, SK: `J#${r.at}#${r.journalId}`, ...r });
+    await this.table.put({ ...itemKeys.journal(r), ...r });
   }
 
   async listJournalRecords() {

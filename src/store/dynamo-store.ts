@@ -87,7 +87,9 @@ class DynamoTable implements Table {
   }
 }
 
-export function dynamoStore(tableName = process.env.TABLE_NAME ?? "between-sessions"): TableStore {
+export const TABLE_NAME = process.env.TABLE_NAME ?? "between-sessions";
+
+export function dynamoStore(tableName = TABLE_NAME): TableStore {
   const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
     marshallOptions: { removeUndefinedValues: true },
   });

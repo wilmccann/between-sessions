@@ -21,39 +21,69 @@ import reviewSessions from "../mcp/tools/review-sessions.js";
 import { parseRefId, refId } from "../review.js";
 import { defaultTimezone, hasSchedule, type Series } from "../series.js";
 import { openAgenda } from "../store/agenda.js";
-import { dynamoStore } from "../store/dynamo-store.js";
+import { dynamoStore, TABLE_NAME } from "../store/dynamo-store.js";
 import { fileStore } from "../store/file-store.js";
+import { itemKeys } from "../store/table-store.js";
 import type { SessionStore } from "../store/types.js";
 import { formatShort } from "../time.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SESSIONS_PER_SERIES = 20;
 const LOG_LIMIT = 50; // markers and voice notes, newest first
-const last4 = (id: string | number) => String(id).slice(-4);
 
 const schedule = (s: Series) => (hasSchedule(s) ? `${WEEKDAYS[s.weekday]} ${s.windowStart} to ${s.windowEnd}` : "unscheduled");
 
-// Everything the page shows, without any summary.
-export async function reviewState(store: SessionStore) {
+// Lookup commands to paste into a terminal: Bee's own record for an id, and
+// the table item behind a row. Your terminal's AWS profile and region apply.
+export interface Lookup {
+  label: string;
+  command: string;
+}
+export const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+const beeConversation = (id: string | number): Lookup => ({ label: `bee ${id}`, command: `bee conversations get ${shellQuote(String(id))} --json` });
+const beeJournal = (id: string): Lookup => ({ label: "bee", command: `bee journals get ${shellQuote(id)} --json` });
+const attr = (v: string) => ({ S: v });
+const dynamoGet = (table: string, key: { PK: string; SK: string }): Lookup => ({
+  label: "db",
+  command: `aws dynamodb get-item --table-name ${shellQuote(table)} --key ${shellQuote(JSON.stringify({ PK: attr(key.PK), SK: attr(key.SK) }))}`,
+});
+const dynamoQuery = (table: string, key: { PK: string; prefix: string }): Lookup => ({
+  label: "db",
+  command:
+    `aws dynamodb query --table-name ${shellQuote(table)} --key-condition-expression 'PK = :pk AND begins_with(SK, :sk)' ` +
+    `--expression-attribute-values ${shellQuote(JSON.stringify({ ":pk": attr(key.PK), ":sk": attr(key.prefix) }))}`,
+});
+
+export interface ReviewStateOptions {
+  table?: string; // the DynamoDB table; no db lookups without one (the file store)
+}
+
+// Everything the page shows, without any summary. Each row carries its time
+// (`at`, ISO) and series id for the page's filters, full Bee ids, and lookups.
+export async function reviewState(store: SessionStore, opts: ReviewStateOptions = {}) {
+  const { table } = opts;
+  const db = <K>(f: (t: string, k: K) => Lookup, key: K) => (table ? [f(table, key)] : []);
   const series = await store.listSeries();
   const tz = defaultTimezone(series);
   const byId = new Map(series.map((s) => [s.id, s]));
   const nameOf = (id: string) => byId.get(id)?.name ?? id;
   const when = (iso: string, seriesId?: string) => formatShort(Date.parse(iso), (seriesId && byId.get(seriesId)?.timezone) || tz);
 
-  const [sessions, agenda, markers, notes, review] = await Promise.all([
+  const [sessions, agenda, markers, notes, review, reviewItems] = await Promise.all([
     Promise.all(
       series.map(async (s) => ({
         seriesId: s.id,
         series: s.name,
         sessions: (await store.listSessions(s.id, SESSIONS_PER_SERIES)).map((v) => ({
           id: refId(v),
+          at: v.start,
           when: when(v.start, s.id),
           minutes: minutes(v.start, v.end),
           parts: v.parts.length,
-          beeIds: v.parts.map((p) => last4(p.id)),
+          beeIds: v.parts.map((p) => String(p.id)),
           versions: v.versions,
           tag: v.tag ? { source: v.tag.source, confidence: v.tag.confidence, status: v.tag.status, reason: v.tag.reason } : null,
+          lookups: [...v.parts.map((p) => beeConversation(p.id)), ...db(dynamoQuery, itemKeys.sessionVersions(s.id, v.start))],
         })),
       })),
     ),
@@ -64,16 +94,21 @@ export async function reviewState(store: SessionStore) {
         items: openAgenda(await store.listAgenda(s.id), await store.getLatestSession(s.id)).map((i) => ({
           text: i.text,
           source: i.source ?? "you",
+          at: i.createdAt,
           added: when(i.createdAt, s.id),
+          journalId: i.journalId ?? null,
+          lookups: [...(i.journalId ? [beeJournal(i.journalId)] : []), ...db(dynamoGet, itemKeys.agenda(i))],
         })),
       })),
     ),
     store.listMarkers(),
     store.listJournalRecords(),
     reviewSessions.call({}, { store }),
+    store.listReviewItems(),
   ]);
   const reviewText = review.content[0]?.type === "text" ? review.content[0].text : "";
   const queue = reviewText.startsWith("{") ? JSON.parse(reviewText) : { line: null, sessions: [] };
+  const itemsById = new Map(reviewItems.map((i) => [refId(i), i]));
 
   return {
     series: series.map((s) => ({ id: s.id, name: s.name, schedule: schedule(s), spokenNames: s.spokenNames })),
@@ -82,23 +117,41 @@ export async function reviewState(store: SessionStore) {
       .slice(-LOG_LIMIT)
       .reverse()
       .map((m) => ({
+        at: m.at,
         when: when(m.at, m.seriesId),
         kind: m.kind,
+        seriesId: m.seriesId ?? null,
         series: m.seriesId ? nameOf(m.seriesId) : m.unclear ? "unclear" : "none named",
-        journal: last4(m.journalId),
+        journalId: m.journalId,
+        lookups: [beeJournal(m.journalId), ...db(dynamoGet, itemKeys.marker(m))],
       })),
     voiceNotes: notes
       .slice(-LOG_LIMIT)
       .reverse()
       .map((r) => ({
+        at: r.at,
         when: when(r.at, r.seriesId),
         kind: r.kind,
         status: r.status,
+        seriesId: r.seriesId ?? null,
         series: r.seriesId ? nameOf(r.seriesId) : null,
         reason: r.reason ?? null,
-        journal: last4(r.journalId),
+        journalId: r.journalId,
+        lookups: [beeJournal(r.journalId), ...db(dynamoGet, itemKeys.journal(r))],
       })),
-    review: { line: queue.line as string | null, sessions: queue.sessions as unknown[] },
+    review: {
+      line: queue.line as string | null,
+      sessions: (queue.sessions as { id: string }[]).map((r) => {
+        const item = itemsById.get(r.id);
+        return {
+          ...r,
+          seriesId: item?.seriesId ?? null,
+          at: item?.start ?? null,
+          beeIds: item ? item.conversationIds.map(String) : [],
+          lookups: item ? [...item.conversationIds.map(beeConversation), ...db(dynamoGet, itemKeys.review(item))] : [],
+        };
+      }),
+    },
     agenda,
   };
 }
@@ -145,7 +198,7 @@ function send(res: ServerResponse, status: number, body: unknown) {
 }
 
 // The review page's HTTP server. Listen on 127.0.0.1 only.
-export function reviewServer(store: SessionStore, token: string): Server {
+export function reviewServer(store: SessionStore, token: string, opts: ReviewStateOptions = {}): Server {
   const expected = digest(token);
   const server = createServer(async (req, res) => {
     try {
@@ -156,7 +209,7 @@ export function reviewServer(store: SessionStore, token: string): Server {
       const header = req.headers["x-review-token"];
       const presented = (typeof header === "string" ? header : undefined) ?? url.searchParams.get("token") ?? "";
       if (!timingSafeEqual(digest(presented), expected)) throw new HttpError(401, "Missing or wrong token");
-      await route(store, req, res, url);
+      await route(store, req, res, url, opts);
     } catch (err) {
       if (err instanceof HttpError) return send(res, err.status, { error: err.message });
       console.error("review page request failed:", (err as Error).name);
@@ -166,10 +219,10 @@ export function reviewServer(store: SessionStore, token: string): Server {
   return server;
 }
 
-async function route(store: SessionStore, req: IncomingMessage, res: ServerResponse, url: URL) {
+async function route(store: SessionStore, req: IncomingMessage, res: ServerResponse, url: URL, opts: ReviewStateOptions) {
   const path = url.pathname;
   if (req.method === "GET" && path === "/") return send(res, 200, PAGE);
-  if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store));
+  if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store, opts));
   if (req.method === "GET" && path === "/api/summary") {
     const summary = await sessionSummary(store, url.searchParams.get("id") ?? "");
     if (!summary) throw new HttpError(404, "No stored session with that id");
@@ -245,6 +298,10 @@ const PAGE = /* html */ `<!doctype html>
   .summary { white-space: pre-wrap; font-size: .9em; }
   #readback { padding: .6rem .8rem; border: 1px solid #8886; border-radius: 6px; display: none; margin-bottom: 1rem; }
   #readback.error { border-color: #c33; }
+  #filters { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: end; padding: .6rem .8rem; border: 1px solid #8884; border-radius: 6px; }
+  #filters label { display: flex; flex-direction: column; font-size: .85em; gap: .15rem; }
+  .ids { font-family: ui-monospace, monospace; font-size: .85em; word-break: break-all; }
+  .lookup { font-size: .85em; }
   button, select { font: inherit; margin-right: .3rem; }
 </style>
 </head>
@@ -252,6 +309,7 @@ const PAGE = /* html */ `<!doctype html>
 <h1>Between Sessions: review</h1>
 <p class="muted">Local only (127.0.0.1). Summaries stay hidden unless you press "show".</p>
 <div id="readback" role="status"></div>
+<div id="filters"></div>
 <div id="app">Loading...</div>
 <script>
 "use strict";
@@ -330,38 +388,100 @@ function agendaActions(i, g) {
   return el("button", { onclick: () => edit("/api/agenda/remove", { series: g.seriesId, text: i.text }) }, "Remove");
 }
 
+// Filters apply to the sections that have the field: kind to markers and
+// voice notes, status to sessions (their tag) and voice notes.
+const filters = { series: "", kind: "", status: "", from: "", to: "" };
+const dayStart = (d) => new Date(d + "T00:00").getTime();
+function keep(row, fields) {
+  if (filters.series && fields.series !== undefined && (fields.series || "(none)") !== filters.series) return false;
+  if (filters.kind && fields.kind !== undefined && fields.kind !== filters.kind) return false;
+  if (filters.status && fields.status !== undefined && fields.status !== filters.status) return false;
+  const t = row.at ? Date.parse(row.at) : NaN;
+  if (filters.from && !(t >= dayStart(filters.from))) return false;
+  if (filters.to && !(t < dayStart(filters.to) + 86400000)) return false;
+  return true;
+}
+
+function renderFilters() {
+  const s = state;
+  const distinct = (xs) => [...new Set(xs.filter(Boolean))].sort();
+  const kinds = distinct([...s.markers, ...s.voiceNotes].map((r) => r.kind));
+  const statuses = distinct([...s.voiceNotes.map((n) => n.status), ...s.sessions.flatMap((g) => g.sessions.map((x) => x.tag ? x.tag.status : "untagged"))]);
+  const choose = (key, label, options) => {
+    const select = el("select", { onchange: () => { filters[key] = select.value; render(); } },
+      el("option", { value: "" }, "All"), options.map(([v, text]) => el("option", { value: v }, text)));
+    select.value = filters[key];
+    return el("label", {}, label, select);
+  };
+  const date = (key, label) => {
+    const input = el("input", { type: "date", value: filters[key], onchange: () => { filters[key] = input.value; render(); } });
+    return el("label", {}, label, input);
+  };
+  document.getElementById("filters").replaceChildren(
+    choose("series", "Series", [...s.series.map((x) => [x.id, x.name]), ["(none)", "None named"]]),
+    choose("kind", "Kind", kinds.map((k) => [k, k])),
+    choose("status", "Status", statuses.map((k) => [k, k])),
+    date("from", "From"),
+    date("to", "To"),
+    el("button", { onclick: () => { Object.assign(filters, { series: "", kind: "", status: "", from: "", to: "" }); renderFilters(); render(); } }, "Clear"),
+    el("span", { class: "muted" }, "Kind applies to markers and voice notes; status to sessions and voice notes."),
+  );
+}
+
+// One button per lookup: copies the command; hover shows it.
+function lookups(list) {
+  return el("span", { class: "lookup" }, (list || []).map((l) => {
+    const b = el("button", { title: l.command, onclick: async () => {
+      try { await navigator.clipboard.writeText(l.command); b.textContent = "copied"; setTimeout(() => { b.textContent = l.label; }, 1200); }
+      catch { window.prompt("Copy this command:", l.command); }
+    } }, l.label);
+    return b;
+  }));
+}
+
+const ids = (xs) => el("span", { class: "ids" }, xs.join(", "));
+const shown = (title, all, rows) => el("h2", {}, title, all.length ? el("span", { class: "muted" }, " (" + rows.length + " of " + all.length + ")") : null);
+
 function render() {
   const s = state;
   const app = document.getElementById("app");
+  const review = s.review.sessions.filter((r) => keep(r, { series: r.seriesId }));
+  const markers = s.markers.filter((m) => keep(m, { series: m.seriesId, kind: m.kind }));
+  const notes = s.voiceNotes.filter((n) => keep(n, { series: n.seriesId, kind: n.kind, status: n.status }));
+  const bySeries = (g) => !filters.series || filters.series === g.seriesId;
+  const sessions = s.sessions.filter(bySeries).map((g) => ({ ...g, rows: g.sessions.filter((x) => keep(x, { status: x.tag ? x.tag.status : "untagged" })) }));
+  const agenda = s.agenda.filter(bySeries).map((g) => ({ ...g, rows: g.items.filter((i) => keep(i, {})) }));
+  const allSessions = s.sessions.flatMap((g) => g.sessions);
+  const allAgenda = s.agenda.flatMap((g) => g.items);
   // The per-series sections are nested arrays; replaceChildren would print them as text.
   app.replaceChildren(...[
-    el("h2", {}, "Review queue"),
+    shown("Review queue", s.review.sessions, review),
     el("p", {}, s.review.line || "Nothing to review."),
-    table(["Id", "When", "Minutes", "Guess", "Filed", "Reason", "Bee id", "Expires in", ""],
-      s.review.sessions.map((r) => [el("code", {}, r.id), r.when, r.durationMinutes, r.guess, r.filed ? "yes" : "no", r.reason, r.beeId, r.expiresInDays + " days", reviewActions(r)])),
+    table(["Id", "When", "Minutes", "Guess", "Filed", "Reason", "Bee ids", "Expires in", "Look up", ""],
+      review.map((r) => [el("code", {}, r.id), r.when, r.durationMinutes, r.guess, r.filed ? "yes" : "no", r.reason, ids(r.beeIds), r.expiresInDays + " days", lookups(r.lookups), reviewActions(r)])),
     el("h2", {}, "Series"),
     table(["Id", "Name", "Schedule", "Spoken names"], s.series.map((x) => [el("code", {}, x.id), x.name, x.schedule, x.spokenNames.join(", ")])),
-    el("h2", {}, "Sessions"),
-    s.sessions.map((g) => [
+    shown("Sessions", allSessions, sessions.flatMap((g) => g.rows)),
+    sessions.map((g) => [
       el("h3", {}, g.series),
-      table(["When", "Minutes", "Parts", "Bee ids", "Tag", "Summary", ""],
-        g.sessions.map((x) => [x.when, x.minutes, x.parts, x.beeIds.join(", "), tagText(x.tag), summaryButton(x.id), sessionActions(x, g)])),
+      table(["When", "Minutes", "Parts", "Bee ids", "Tag", "Summary", "Look up", ""],
+        g.rows.map((x) => [x.when, x.minutes, x.parts, ids(x.beeIds), tagText(x.tag), summaryButton(x.id), lookups(x.lookups), sessionActions(x, g)])),
     ]),
-    el("h2", {}, "Open agenda"),
-    s.agenda.map((g) => [
+    shown("Open agenda", allAgenda, agenda.flatMap((g) => g.rows)),
+    agenda.map((g) => [
       el("h3", {}, g.series),
-      table(["Item", "From", "Added", ""], g.items.map((i) => [i.text, i.source, i.added, agendaActions(i, g)])),
+      table(["Item", "From", "Added", "Look up", ""], g.rows.map((i) => [i.text, i.source, i.added, lookups(i.lookups), agendaActions(i, g)])),
     ]),
-    el("h2", {}, "Markers"),
-    table(["When", "Kind", "Series", "Voice note"], s.markers.map((m) => [m.when, m.kind, m.series, m.journal])),
-    el("h2", {}, "Voice notes"),
-    table(["When", "Kind", "Status", "Series", "Reason", "Voice note"],
-      s.voiceNotes.map((n) => [n.when, n.kind, n.status, n.series || "", n.reason || "", n.journal])),
+    shown("Markers", s.markers, markers),
+    table(["When", "Kind", "Series", "Voice note", "Look up"], markers.map((m) => [m.when, m.kind, m.series, ids([m.journalId]), lookups(m.lookups)])),
+    shown("Voice notes", s.voiceNotes, notes),
+    table(["When", "Kind", "Status", "Series", "Reason", "Voice note", "Look up"],
+      notes.map((n) => [n.when, n.kind, n.status, n.series || "", n.reason || "", ids([n.journalId]), lookups(n.lookups)])),
   ].flat(2));
 }
 
 async function load() {
-  try { state = await api("/api/state"); render(); }
+  try { state = await api("/api/state"); renderFilters(); render(); }
   catch (err) { document.getElementById("app").textContent = "Couldn't load: " + err.message; }
 }
 load();
@@ -375,7 +495,7 @@ async function main() {
   const storeArg = args.find((a) => a.startsWith("--store="))?.slice(8) ?? (args.includes("--store") ? args[args.indexOf("--store") + 1] : "dynamo");
   const store = storeArg === "file" ? fileStore() : dynamoStore();
   const token = newToken();
-  const server = reviewServer(store, token);
+  const server = reviewServer(store, token, storeArg === "file" ? {} : { table: TABLE_NAME });
   server.listen(Number(process.env.REVIEW_PORT ?? 8789), "127.0.0.1", () => {
     const { port } = server.address() as AddressInfo;
     console.log(`Between Sessions review page (${storeArg === "file" ? "file store" : "DynamoDB"}), local only. Open:`);

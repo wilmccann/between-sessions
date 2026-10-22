@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { newToken, reviewServer } from "../src/local/review-ui.js";
+import { newToken, reviewServer, shellQuote } from "../src/local/review-ui.js";
 import { fileStore } from "../src/store/file-store.js";
 import type { TableStore } from "../src/store/table-store.js";
 import type { SessionInput, SessionTag } from "../src/store/types.js";
@@ -169,33 +169,87 @@ describe("review page: state", () => {
     assert.deepEqual(coachingSessions, [
       {
         id: `coaching@${COACHING}`,
+        at: COACHING,
         when: "Thu, Oct 15, 4:02 PM",
         minutes: 53,
         parts: 1,
-        beeIds: ["0111"],
+        beeIds: ["900111"],
         versions: 1,
         tag: { source: "schedule", confidence: "high", status: "auto", reason: "Thu 16:00 to 17:00 slot" },
+        // The file store has no table, so no db lookup.
+        lookups: [{ label: "bee 900111", command: "bee conversations get '900111' --json" }],
       },
     ]);
-    assert.deepEqual(state.markers.map((m: { kind: string; series: string; journal: string }) => [m.kind, m.series, m.journal]), [
-      ["end", "none named", "2222"],
-      ["start", "none named", "1111"],
+    assert.deepEqual(state.markers.map((m: { kind: string; series: string; journalId: string }) => [m.kind, m.series, m.journalId]), [
+      ["end", "none named", "jrnl-synthetic-2222"],
+      ["start", "none named", "jrnl-synthetic-1111"],
     ]);
-    assert.deepEqual(state.voiceNotes.map((n: { kind: string; status: string; journal: string }) => [n.kind, n.status, n.journal]), [
-      ["note", "ignored", "3333"],
-      ["start", "filed", "1111"],
+    assert.equal(state.markers[1].at, OTHER);
+    assert.deepEqual(state.markers[1].lookups, [{ label: "bee", command: "bee journals get 'jrnl-synthetic-1111' --json" }]);
+    assert.deepEqual(state.voiceNotes.map((n: { kind: string; status: string; journalId: string }) => [n.kind, n.status, n.journalId]), [
+      ["note", "ignored", "jrnl-synthetic-3333"],
+      ["start", "filed", "jrnl-synthetic-1111"],
     ]);
     assert.equal(state.review.line, "2 sessions to review.");
     assert.deepEqual(
-      state.review.sessions.map((r: { id: string; guess: string; filed: boolean; beeId: string }) => [r.id, r.guess, r.filed, r.beeId]),
+      state.review.sessions.map((r: { id: string; seriesId: string; at: string; guess: string; filed: boolean; beeIds: string[] }) => [
+        r.id,
+        r.seriesId,
+        r.at,
+        r.guess,
+        r.filed,
+        r.beeIds,
+      ]),
       [
-        [`acme-interview@${ACME_GUESS}`, "Acme interview", false, "0444"],
-        [`other@${OTHER}`, "Other", true, "0333"],
+        [`acme-interview@${ACME_GUESS}`, "acme-interview", ACME_GUESS, "Acme interview", false, ["900444"]],
+        [`other@${OTHER}`, "other", OTHER, "Other", true, ["900333"]],
       ],
     );
     const agenda = Object.fromEntries(state.agenda.map((g: { seriesId: string; items: unknown[] }) => [g.seriesId, g.items]));
-    assert.deepEqual(agenda.coaching, [{ text: "Synthetic: bring up the trip", source: "bee", added: "Wed, Oct 21, 8:00 AM" }]);
-    assert.deepEqual(agenda.therapy, [{ text: "Synthetic: sleep", source: "you", added: "Wed, Oct 21, 9:00 AM" }]);
+    assert.deepEqual(agenda.coaching, [
+      {
+        text: "Synthetic: bring up the trip",
+        source: "bee",
+        at: "2026-10-21T12:00:00.000Z",
+        added: "Wed, Oct 21, 8:00 AM",
+        journalId: "jrnl-synthetic-4444",
+        lookups: [{ label: "bee", command: "bee journals get 'jrnl-synthetic-4444' --json" }],
+      },
+    ]);
+    assert.deepEqual(agenda.therapy, [
+      { text: "Synthetic: sleep", source: "you", at: "2026-10-21T13:00:00.000Z", added: "Wed, Oct 21, 9:00 AM", journalId: null, lookups: [] },
+    ]);
+  });
+
+  it("gives DynamoDB lookups for each row when it knows the table", async () => {
+    const withTable = reviewServer(store, token, { table: "synthetic-table" });
+    await new Promise<void>((r) => withTable.listen(0, "127.0.0.1", r));
+    try {
+      const state = (await call((withTable.address() as AddressInfo).port, "/api/state", { token })).json();
+      const db = (lookups: { label: string; command: string }[]) => lookups.find((l) => l.label === "db")!.command;
+      // The key JSON inside the single quotes, as DynamoDB gets it.
+      const json = (command: string) => JSON.parse(/'(\{.*\})'/.exec(command)![1]);
+      const session = state.sessions.find((g: { seriesId: string }) => g.seriesId === "coaching").sessions[0];
+      assert.match(db(session.lookups), /^aws dynamodb query --table-name 'synthetic-table' --key-condition-expression 'PK = :pk AND begins_with\(SK, :sk\)' /);
+      assert.deepEqual(json(db(session.lookups)), { ":pk": { S: "SERIES#coaching" }, ":sk": { S: `SESSION#${COACHING}#V#` } });
+      assert.match(db(state.markers[1].lookups), /^aws dynamodb get-item --table-name 'synthetic-table' --key '/);
+      assert.deepEqual(json(db(state.markers[1].lookups)), { PK: { S: "MARKERS" }, SK: { S: `M#${OTHER}#jrnl-synthetic-1111` } });
+      assert.deepEqual(json(db(state.voiceNotes[1].lookups)), { PK: { S: "JOURNALS" }, SK: { S: `J#${OTHER}#jrnl-synthetic-1111` } });
+      assert.deepEqual(json(db(state.review.sessions[0].lookups)), { PK: { S: "REVIEW" }, SK: { S: `R#${ACME_GUESS}#acme-interview` } });
+      const agenda = state.agenda.find((g: { seriesId: string }) => g.seriesId === "therapy").items[0];
+      assert.equal(json(db(agenda.lookups)).PK.S, "SERIES#therapy");
+      assert.match(json(db(agenda.lookups)).SK.S, /^AGENDA#2026-10-21T13:00:00\.000Z#/);
+      // Each key is the stored item's key.
+      const items = await store.listAgenda(therapy.id);
+      assert.equal(json(db(agenda.lookups)).SK.S, `AGENDA#${items[0].createdAt}#${items[0].id}`);
+    } finally {
+      withTable.close();
+    }
+  });
+
+  it("quotes lookup arguments for the shell", () => {
+    assert.equal(shellQuote("plain-123"), "'plain-123'");
+    assert.equal(shellQuote("it's"), `'it'\\''s'`);
   });
 
   it("holds no summaries", async () => {
