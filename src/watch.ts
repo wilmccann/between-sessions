@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { CollectorResult } from "./aws/collector.js";
-import { parseCommand, rehearsal, type Command } from "./commands.js";
+import { commandWords, readNote, type Command } from "./commands.js";
 import { matchSeriesName, type Series } from "./series.js";
 
 // Utterance, location and todo events are never subscribed to.
@@ -103,11 +103,13 @@ export function commandVerdict(cmd: Command | null, series: Series[], shape = fa
 }
 
 // The verdict for a voice note's text, the way the collector reads it; a
-// "Test:" note shows what its command would do.
+// dry run shows what its command would do. A command said without the
+// name says so, since the collector won't act on it.
 export function verdict(text: string, series: Series[], shape = false): string {
-  const rest = rehearsal(text);
-  if (rest !== null) return `Test: would be ${commandVerdict(parseCommand(rest, series), series, shape)}`;
-  return commandVerdict(parseCommand(text, series), series, shape);
+  const note = readNote(text, series);
+  const unaddressed = !note.addressed && commandWords(note.words, series) !== null;
+  const said = unaddressed ? 'plain note (no "Marty", so not a command)' : commandVerdict(note.command, series, shape);
+  return note.test ? `Test: would be ${said}` : said;
 }
 
 const lastFour = (id: string) => `…${id.slice(-4)}`;
@@ -144,7 +146,9 @@ export function describeEvent(event: StreamEvent, series: Series[], opts: Descri
       const raw = verdict(text, series, shape);
       parts.push(`-> ${raw}`);
       if (cleaned) {
-        const other = verdict(cleaned, series, shape);
+        // Bee's cleanup drops a leading name, so put it back before comparing.
+        const named = readNote(text).addressed && !readNote(cleaned).addressed ? `Marty, ${cleaned}` : cleaned;
+        const other = verdict(named, series, shape);
         if (other !== raw) parts.push(`(cleanup changes the verdict: raw=${raw} cleaned=${other})`);
       }
       return parts.join(" ");

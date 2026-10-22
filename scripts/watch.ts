@@ -49,6 +49,8 @@ const runCollector = oneAtATime(async () => {
   } catch (err) {
     log(`${now()} couldn't run the collector (${(err as Error).name})`);
   }
+  // A start note may have just created a series; know it for the next note.
+  await loadSeries();
 });
 
 const handle = lineHandler({

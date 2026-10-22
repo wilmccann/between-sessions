@@ -38,9 +38,9 @@ const run = async (collectedAt: string, conversations: BeeConversation[], journa
 
 describe("Bee button: device test D", () => {
   const journals = [
-    note("j1", t("16:02"), "Start coaching session."),
-    note("j2", t("16:31"), "End coaching session."),
-    note("j3", t("16:33"), "Debrief: synthetic debrief words."),
+    note("j1", t("16:02"), "Marty, Start coaching session."),
+    note("j2", t("16:31"), "Marty, End coaching session."),
+    note("j3", t("16:33"), "Marty, Debrief: synthetic debrief words."),
   ];
   const talk = conversation(101, t("16:03"), t("16:30"));
 
@@ -84,7 +84,7 @@ describe("Bee button: device test D", () => {
 
   it("isn't also stored as a window session", async () => {
     const long = conversation(102, t("16:01"), t("16:50"));
-    await run(t("17:00"), [long], [note("j1", t("16:00"), "Start coaching session."), note("j2", t("16:52"), "End coaching session.")]);
+    await run(t("17:00"), [long], [note("j1", t("16:00"), "Marty, Start coaching session."), note("j2", t("16:52"), "Marty, End coaching session.")]);
     assert.equal((await store.listSessions(coaching.id, 10)).length, 1);
     assert.equal((await store.getLatestSession(coaching.id))?.tag?.source, "marker");
   });
@@ -93,10 +93,10 @@ describe("Bee button: device test D", () => {
 describe("Bee button: interviews and unnamed starts", () => {
   it("files 'Acme interview' and a misheard 'Akme interview' in one new unscheduled series", async () => {
     const journals = [
-      note("a1", t("10:00"), "Start session: Acme interview"),
-      note("a2", t("10:46"), "End session."),
-      note("a3", t("14:00"), "Start session: Akme interview."),
-      note("a4", t("14:51"), "And session."),
+      note("a1", t("10:00"), "Marty, Start session: Acme interview"),
+      note("a2", t("10:46"), "Marty, End session."),
+      note("a3", t("14:00"), "Marty, Start session: Akme interview."),
+      note("a4", t("14:51"), "Marty, And session."),
     ];
     const result = await run(t("15:00"), [conversation(201, t("10:01"), t("10:45")), conversation(202, t("14:01"), t("14:50"))], journals);
     assert.equal(result.button.seriesCreated, 1);
@@ -110,8 +110,8 @@ describe("Bee button: interviews and unnamed starts", () => {
 
   it("sends an unnamed start with two series to Other, pending review", async () => {
     await run(t("12:00", "2026-10-21"), [conversation(301, t("11:01", "2026-10-21"), t("11:40", "2026-10-21"))], [
-      note("o1", t("11:00", "2026-10-21"), "Start session"),
-      note("o2", t("11:41", "2026-10-21"), "End session"),
+      note("o1", t("11:00", "2026-10-21"), "Marty, Start session"),
+      note("o2", t("11:41", "2026-10-21"), "Marty, End session"),
     ]);
     const other = await store.getLatestSession("other");
     assert.equal(other?.tag?.status, "pending");
@@ -121,8 +121,8 @@ describe("Bee button: interviews and unnamed starts", () => {
 
   it("guesses the series from its slot for an unnamed start, pending review", async () => {
     await run(t("17:00"), [conversation(302, t("16:01"), t("16:40"))], [
-      note("s1", t("16:00"), "Start session"),
-      note("s2", t("16:41"), "End session"),
+      note("s1", t("16:00"), "Marty, Start session"),
+      note("s2", t("16:41"), "Marty, End session"),
     ]);
     const s = await store.getLatestSession(coaching.id);
     assert.equal(s?.tag?.status, "pending");
@@ -135,7 +135,7 @@ describe("Bee button: interviews and unnamed starts", () => {
       conversation(402, t("10:50"), t("11:10")),
       conversation(403, t("13:00"), t("13:30")),
     ];
-    await run(t("14:00"), convs, [note("l1", t("10:00"), "Start therapy session")]);
+    await run(t("14:00"), convs, [note("l1", t("10:00"), "Marty, Start therapy session")]);
     const s = await store.getLatestSession(therapy.id);
     assert.deepEqual(s?.parts.map((p) => p.id), [401, 402]);
     assert.equal(s?.end, new Date(t("11:10")).toISOString());
@@ -143,7 +143,7 @@ describe("Bee button: interviews and unnamed starts", () => {
 
   it("opens a lone end at the start of the run leading up to it", async () => {
     const convs = [conversation(501, t("09:00"), t("09:40")), conversation(502, t("09:45"), t("10:20"))];
-    await run(t("11:00"), convs, [note("e1", t("10:21"), "End therapy session")]);
+    await run(t("11:00"), convs, [note("e1", t("10:21"), "Marty, End therapy session")]);
     const s = await store.getLatestSession(therapy.id);
     assert.equal(s?.start, new Date(t("09:00")).toISOString());
     assert.deepEqual(s?.parts.map((p) => p.id), [501, 502]);
@@ -157,7 +157,7 @@ describe("Bee button: interviews and unnamed starts", () => {
 
 describe("Bee button: agenda, takeaways and reports", () => {
   it("adds an agenda item for the next session, marked from Bee, at the note's time", async () => {
-    await run(t("09:30"), [], [note("g1", t("09:00"), "Agenda: synthetic item")]);
+    await run(t("09:30"), [], [note("g1", t("09:00"), "Marty, Agenda: synthetic item")]);
     const [item] = await store.listAgenda(coaching.id); // Coaching is next (Thu 16:00)
     assert.equal(item.text, "synthetic item");
     assert.equal(item.source, "bee");
@@ -168,17 +168,17 @@ describe("Bee button: agenda, takeaways and reports", () => {
   });
 
   it("files a named agenda item and removes one by voice", async () => {
-    await run(t("09:30"), [], [note("g1", t("09:00"), "Agenda for therapy: synthetic sleep item")]);
+    await run(t("09:30"), [], [note("g1", t("09:00"), "Marty, Agenda for therapy: synthetic sleep item")]);
     assert.equal((await store.listAgenda(therapy.id)).length, 1);
-    await run(t("09:45"), [], [note("g2", t("09:40"), "Drop the sleep item from my therapy agenda")]);
+    await run(t("09:45"), [], [note("g2", t("09:40"), "Marty, Drop the sleep item from my therapy agenda")]);
     assert.equal((await store.listAgenda(therapy.id)).length, 0);
   });
 
   it("saves a takeaway on the session that just ended", async () => {
     await run(t("17:00"), [conversation(701, t("16:03"), t("16:30"))], [
-      note("k1", t("16:02"), "Start coaching session"),
-      note("k2", t("16:31"), "End coaching session"),
-      note("k3", t("16:35"), "Takeaway: synthetic takeaway"),
+      note("k1", t("16:02"), "Marty, Start coaching session"),
+      note("k2", t("16:31"), "Marty, End coaching session"),
+      note("k3", t("16:35"), "Marty, Takeaway: synthetic takeaway"),
     ]);
     const s = await store.getLatestSession(coaching.id);
     const [tk] = await store.listTakeaways(coaching.id, s!.start);
@@ -187,7 +187,7 @@ describe("Bee button: agenda, takeaways and reports", () => {
   });
 
   it("reports a note it couldn't file and stores no text of ordinary notes", async () => {
-    await run(t("09:30"), [], [note("u1", t("09:00"), "Agenda."), note("n1", t("09:05"), "Synthetic grocery reminder")]);
+    await run(t("09:30"), [], [note("u1", t("09:00"), "Marty, Agenda."), note("n1", t("09:05"), "Synthetic grocery reminder")]);
     const brief = await prepBrief(store, coaching, at(t("10:00")));
     assert.equal(brief.fromBee, "1 voice note I couldn't file.");
     const raw = await readFile(path, "utf8");

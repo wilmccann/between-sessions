@@ -1,9 +1,10 @@
-// Reads a Bee voice note (a journal) as a command. Notes come through speech
-// recognition, so command words are matched forgivingly ("and session" for
-// "end session", "the brief" for "debrief"), and series names go through
-// the fuzzy matcher. A note that isn't a command returns null and is never
-// stored; a note that starts like a command but can't be used is "unfiled",
-// so it can be reported instead of dropped.
+// Reads a Bee voice note (a journal) as a command. A command is addressed
+// to the product by name ("Marty, start session"); any other note is a
+// plain note, whatever it says. Notes come through speech recognition, so
+// command words are matched forgivingly ("and session" for "end session",
+// "the brief" for "debrief"), and series names go through the fuzzy
+// matcher. A plain note returns null and is never stored; an addressed note
+// that can't be used is "unfiled", so it can be reported instead of dropped.
 import { matchSeriesName, type Series } from "./series.js";
 
 export type Command =
@@ -41,20 +42,51 @@ const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
 const withoutFillers = (raw: string) => raw.replace(/^\s*(?:(?:okay|ok|um+|uh+|so|hey bee)\b[\s,.]*)+/i, "").trim();
 
-// "Test: start coaching session" rehearses a command: the watcher shows what
-// it would do, and the collector treats it as a plain note. Returns the
-// words after "test" or "testing", or null when the note isn't a rehearsal.
-export function rehearsal(raw: string): string | null {
-  const m = /^test(?:ing)?(?:[:,.\-]|\s)[\s:,.\-]*(.*)$/is.exec(withoutFillers(raw));
-  return m ? m[1].trim() : null;
+// The product's name, and the spellings Bee might give it. Bee's cleaned-up
+// text drops a leading name, so it's looked for in the raw text only.
+const NAME = /^(?:hey\s+)?(?:marty|martie|marti|martin)\b[\s,.:;!-]*(.*)$/is;
+// "Test" or "testing", before or after the name, makes a dry run.
+const TEST = /^test(?:ing)?(?:[:,.\-]|\s)[\s:,.\-]*(.*)$/is;
+
+export interface Note {
+  test: boolean; // a dry run: the watcher shows the command, the collector ignores it
+  addressed: boolean; // starts with the product's name
+  words: string; // what's left after the test prefix and the name
+  command: Command | null; // null unless addressed
 }
 
-export function parseCommand(raw: string, series: Series[] = []): Command | null {
-  if (rehearsal(raw) !== null) return null;
-  const text = withoutFillers(raw);
+export function readNote(raw: string, series: Series[] = []): Note {
+  let words = withoutFillers(raw);
+  const strip = (re: RegExp) => {
+    const m = re.exec(words);
+    if (m) words = withoutFillers(m[1]);
+    return m !== null;
+  };
+  let test = strip(TEST);
+  const addressed = strip(NAME);
+  if (addressed && !test) test = strip(TEST);
+  if (!addressed) return { test, addressed, words, command: null };
+  const command: Command = !words
+    ? { kind: "unfiled", reason: "nothing after the name" }
+    : (commandWords(words, series) ?? { kind: "unfiled", reason: "didn't understand" });
+  return { test, addressed, words, command };
+}
 
-  let m = /^not an? session\b|^(?:that|this|it) (?:was not|wasn'?t|is not|isn'?t) an? (?:session|meeting)\b|^no session\b/i.exec(text);
-  if (m) return { kind: "not-session" };
+// The command a voice note gives the collector, or null for a plain note
+// or a dry run.
+export function parseCommand(raw: string, series: Series[] = []): Command | null {
+  const note = readNote(raw, series);
+  return note.test ? null : note.command;
+}
+
+// The command in the words after the name, or null if they aren't one.
+export function commandWords(text: string, series: Series[] = []): Command | null {
+  text = withoutFillers(text);
+
+  // "No session" also starts ordinary news ("No session this week, it got
+  // cancelled"), so it counts only on its own.
+  let m = /^not an? session\b|^(?:that|this|it) (?:was not|wasn'?t|is not|isn'?t) an? (?:session|meeting)\b/i.exec(text);
+  if (m || (/^no session\b/i.test(text) && wordCount(text) <= 3)) return { kind: "not-session" };
 
   // Start and end: short, and either say "session" or name a series.
   m = new RegExp(String.raw`^(start(?:s|ed|ing)?|stat|stark|tart|begin(?:ning)?)\b${SEP}(.*)$`, "is").exec(text);

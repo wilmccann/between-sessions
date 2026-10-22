@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseCommand, rehearsal } from "../src/commands.js";
+import { commandWords, parseCommand, readNote } from "../src/commands.js";
 import { meetingTypes } from "./fixtures/meeting-types.js";
 
-const parse = (text: string) => parseCommand(text, meetingTypes);
+// The grammar after the name; the name itself is tested at the end.
+const parse = (text: string) => commandWords(text, meetingTypes);
+const collect = (text: string) => parseCommand(text, meetingTypes);
 
 describe("parseCommand: session markers", () => {
   it("reads start and end, with or without a series", () => {
@@ -74,23 +76,52 @@ describe("parseCommand: review", () => {
   });
 });
 
-describe("rehearsal: the Test: prefix", () => {
-  it("is a plain note to the collector, and the command to the watcher", () => {
-    assert.equal(parse("Test: start coaching session"), null);
-    assert.equal(rehearsal("Test: start coaching session"), "start coaching session");
-    assert.equal(parse("Testing, end session."), null);
-    assert.equal(rehearsal("Testing, end session."), "end session.");
-    assert.equal(parse("Okay, test: agenda: x"), null);
-    assert.equal(rehearsal("Okay, test: agenda: x"), "agenda: x");
-    assert.equal(rehearsal("test - debrief: fine"), "debrief: fine");
-    assert.deepEqual(parse(rehearsal("Test: start coaching session")!), { kind: "start", series: "coaching" });
+describe("parseCommand: the name", () => {
+  it("acts only on notes that start with Marty or Martin", () => {
+    assert.deepEqual(collect("Marty, start coaching session."), { kind: "start", series: "coaching" });
+    assert.deepEqual(collect("Martin, agenda for coaching. Bring up the work trip."), { kind: "agenda", text: "Bring up the work trip", series: "coaching" });
+    assert.deepEqual(collect("Okay, Marty: debrief, it went well"), { kind: "debrief", text: "it went well" });
+    assert.deepEqual(collect("Hey Marty, end session"), { kind: "end" });
+    assert.equal(collect("Start coaching session."), null);
+    assert.equal(collect("The brief. It went well."), null);
+    assert.equal(collect("No session this week. It got canceled."), null);
+    assert.equal(collect("Martini night with the synthetic book club"), null);
+  });
+
+  it("reports an addressed note it can't read", () => {
+    assert.deepEqual(collect("Marty, create a task to call the synthetic plumber"), { kind: "unfiled", reason: "didn't understand" });
+    assert.deepEqual(collect("Marty."), { kind: "unfiled", reason: "nothing after the name" });
+    assert.deepEqual(collect("Marty, that was chess"), { kind: "unfiled", reason: "didn't understand" });
+  });
+});
+
+describe("readNote: dry runs", () => {
+  it("is a plain note to the collector, and the command to the watcher, in either order", () => {
+    for (const text of ["Marty, test: start coaching session", "Test: Marty, start coaching session", "Test. Marty start coaching session.", "Martin testing, start coaching session"]) {
+      assert.equal(collect(text), null, text);
+      const note = readNote(text, meetingTypes);
+      assert.equal(note.test, true, text);
+      assert.deepEqual(note.command, { kind: "start", series: "coaching" }, text);
+    }
+  });
+
+  it("without the name, a dry run is a plain note too", () => {
+    const note = readNote("Test: start coaching session", meetingTypes);
+    assert.deepEqual([note.test, note.addressed, note.command, note.words], [true, false, null, "start coaching session"]);
   });
 
   it("leaves other notes alone", () => {
-    assert.equal(rehearsal("Tests came back fine"), null);
-    assert.equal(parse("Tests came back fine"), null);
-    assert.equal(rehearsal("Start session"), null);
-    assert.equal(rehearsal("Testament"), null);
-    assert.deepEqual(parse("Start session"), { kind: "start" });
+    assert.equal(readNote("Marty, tests came back fine", meetingTypes).test, false);
+    assert.equal(readNote("Testament to the synthetic team").test, false);
+    assert.equal(readNote("Marty, start session").test, false);
+  });
+});
+
+describe("commandWords: no session", () => {
+  it("counts only on its own", () => {
+    assert.deepEqual(parse("No session."), { kind: "not-session" });
+    assert.deepEqual(parse("No session, sorry"), { kind: "not-session" });
+    assert.equal(parse("No session this week, it got cancelled"), null);
+    assert.deepEqual(parse("Not a session, it was lunch with a synthetic friend"), { kind: "not-session" });
   });
 });

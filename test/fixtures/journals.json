@@ -2,7 +2,7 @@
   "journals": [
     {
       "id": "j-synthetic-3",
-      "text": "Agenda: ask about the synthetic offsite.",
+      "text": "Marty, Agenda: ask about the synthetic offsite.",
       "state": "READY",
       "created_at": 1792545000000,
       "updated_at": 1792545060000,
@@ -10,7 +10,7 @@
     },
     {
       "id": "j-synthetic-2",
-      "text": "End coaching session.",
+      "text": "Marty, End coaching session.",
       "state": "READY",
       "created_at": 1792544400000,
       "updated_at": 1792544460000,
@@ -18,7 +18,7 @@
     },
     {
       "id": "j-synthetic-1",
-      "text": "Start coaching session.",
+      "text": "Marty, Start coaching session.",
       "state": "READY",
       "created_at": 1792540800000,
       "updated_at": 1792540860000,

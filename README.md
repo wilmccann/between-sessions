@@ -2,7 +2,7 @@
 
 A companion for recurring 1:1 sessions (therapy, coaching, mentoring, interview loops) built on data from a [Bee](https://docs.bee.computer/docs) wearable.
 
-Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" Between sessions it says what has happened since: how many days and conversations, which topics from last time came up again, Bee's insights and new todos. After a session it saves what Bee captured before the summaries get rewritten, and keeps your takeaways and debrief. The Bee's own button is an input: hold it and say "Start session", "End session", "Debrief: ...", "Agenda: ..." or "Takeaway: ...", and the next brief confirms what was filed.
+Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" Between sessions it says what has happened since: how many days and conversations, which topics from last time came up again, Bee's insights and new todos. After a session it saves what Bee captured before the summaries get rewritten, and keeps your takeaways and debrief. The Bee's own button is an input: hold it and talk to the product by name, Marty ("Marty, start session", "Marty, end session", "Marty, debrief: ...", "Marty, agenda: ..." or "Marty, takeaway: ..."), and the next brief confirms what was filed.
 
 > Status: built for the Build, Ship, Shape: Amazon Developer Hackathon (Bee track). The collector, the session store and the remote MCP server run on AWS; the Bedrock notes are built and ship switched off.
 
@@ -68,20 +68,20 @@ Descriptions are written to be read aloud, for voice use through an Alexa skill 
 
 ## The Bee button
 
-In the Bee app, set the Action Button's "Hold and speak" to **Voice Notes** (not Voice Assistant): each hold-and-speak becomes a Bee journal, which the CLI can read. Optionally set double press to "Process current conversation", so pressing it at the end of a session makes Bee finish that conversation sooner. Then hold the button and say:
+In the Bee app, set the Action Button's "Hold and speak" to **Voice Notes** (not Voice Assistant): each hold-and-speak becomes a Bee journal, which the CLI can read. Optionally set double press to "Process current conversation", so pressing it at the end of a session makes Bee finish that conversation sooner. Then hold the button and say the product's name, **Marty** (or **Martin**), then the command. A voice note without the name is a plain note, whatever it says.
 
 | You say | What happens |
 |---|---|
-| "Start session" or "Start coaching" | Marks a session's start at the time of the note |
-| "Start session: Acme interview" | Marks the start of a session in that series, creating it (with no schedule) if it's new |
-| "End session" | Marks the end; the session is built from the conversations in between |
-| "Debrief: ..." | Saves your debrief on the session that just ended |
-| "Agenda: ..." or "For therapy: ..." | Adds an agenda item for the next session, marked "from Bee" |
-| "Takeaway: ..." | Saves a takeaway on the session that just ended |
-| "Drop ... from my agenda" | Removes an open agenda item |
-| "That was Acme", "Retag: coaching", "Not a session" | Corrects the session that just happened |
+| "Marty, start session" or "Marty, start coaching" | Marks a session's start at the time of the note |
+| "Marty, start session: Acme interview" | Marks the start of a session in that series, creating it (with no schedule) if it's new |
+| "Marty, end session" | Marks the end; the session is built from the conversations in between |
+| "Marty, debrief: ..." | Saves your debrief on the session that just ended |
+| "Marty, agenda: ..." or "Marty, for therapy: ..." | Adds an agenda item for the next session, marked "from Bee" |
+| "Marty, takeaway: ..." | Saves a takeaway on the session that just ended |
+| "Marty, drop ... from my agenda" | Removes an open agenda item |
+| "Marty, that was Acme", "Marty, retag: coaching", "Marty, not a session" | Corrects the session that just happened |
 
-Command words are matched forgivingly ("and session" counts as "end session"). The button gives no feedback and Bee takes a few minutes to transcribe a note, so the next brief or digest opens with what was filed, for example "Got it: session ended Thu 4:32 PM, debrief saved, 1 agenda item added", and reports any note that started like a command but couldn't be filed. An unnamed start with several series goes to the series whose slot it falls in, or to the catch-all Other series, and waits for review.
+Command words are matched forgivingly ("and session" counts as "end session", and colons can be left out). The name is read from Bee's raw transcript, because Bee's cleaned-up text drops it. The button gives no feedback; Bee has a voice note ready in about 5 seconds and the collector files it within 15 minutes, so the next brief or digest opens with what was filed, for example "Got it: session ended Thu 4:32 PM, debrief saved, 1 agenda item added", and reports any note addressed to Marty that couldn't be filed or understood. An unnamed start with several series goes to the series whose slot it falls in, or to the catch-all Other series, and waits for review.
 
 ## Series config
 
@@ -116,7 +116,7 @@ aws lambda invoke --function-name between-sessions-collector out.json && cat out
 
 The response holds counts only, for example `{"conversations":80,"insights":90,"series":1,"matched":3,"written":3,...}`.
 
-Seeding is optional: a "Start session: <name>" voice note creates an unscheduled series by itself.
+Seeding is optional: a "Marty, start session: <name>" voice note creates an unscheduled series by itself.
 
 ### Connect Claude Code
 
@@ -195,7 +195,7 @@ Two tools for checking the Bee button without waiting for the next collector run
   - `--collect`: when a voice note is ready, runs the collector Lambda once and prints its counts, so filing shows end to end in about a minute.
   - `--shape`: no text at all (kinds, times and verdicts only).
 - **Review page** (`corepack yarn review-ui`): prints a `http://127.0.0.1:8789/?token=...` link (port from `REVIEW_PORT`). The page lists series, sessions with their tags and Bee ids (last 4 characters), markers, voice notes, the review queue and open agenda items. Summaries stay hidden unless you press "show" on a row. You can move a session to another series, confirm it, mark it as not a session, or remove an agenda item, through the same code as the MCP tools, with the same read-back. It listens on 127.0.0.1 only, checks the Host header, and needs the token made at each launch; the page is self-contained (no external scripts or fonts).
-- **`Test:` prefix:** start a voice note with "Test:" ("Test: start coaching session") to rehearse a command. The watcher shows what it would do ("Test: would be START, series coaching (new series)"), and the collector treats it as a plain note, so nothing is filed.
+- **Dry runs:** say "test" before or after the name ("Marty, test: start coaching session" or "Test: Marty, start coaching session") to rehearse a command. The watcher shows what it would do ("Test: would be START, series coaching (new series)"), and the collector treats it as a plain note, so nothing is filed. A command said without the name shows as `plain note (no "Marty", so not a command)`. With `--collect`, the watcher reloads your series after each collector run.
 
 ## Privacy
 

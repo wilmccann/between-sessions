@@ -50,44 +50,48 @@ describe("classifyStreamEvent", () => {
 describe("describeEvent: voice notes", () => {
   it("prints the time, kind, id, state, what Bee heard and the verdict", () => {
     assert.equal(
-      line(journal("Start coaching session.")),
-      '16:02:05 journal …ab12 READY heard "Start coaching session." -> START, series coaching (existing series)',
+      line(journal("Marty, start coaching session.")),
+      '16:02:05 journal …ab12 READY heard "Marty, start coaching session." -> START, series coaching (existing series)',
     );
   });
 
   it("gives the collector's verdict for every command", () => {
-    assert.equal(verdictOf("Start coaching session.", []), "START (new series)");
-    assert.equal(line(journal("Start coaching session."), false, []).split(" -> ")[1], "START, series coaching (new series)");
-    assert.equal(line(journal("Start session: Initech interview")).split(" -> ")[1], "START, series Initech interview (new series)");
-    assert.equal(verdictOf("Start session."), "START");
-    assert.equal(verdictOf("End session"), "END");
-    assert.equal(verdictOf("Debrief: synthetic notes."), "DEBRIEF");
-    assert.equal(verdictOf("Agenda: the synthetic trip"), "AGENDA");
-    assert.equal(line(journal("Agenda for therapy: the synthetic trip")).split(" -> ")[1], "AGENDA (series therapy, existing series)");
-    assert.equal(line(journal("Agenda for chess: x")).split(" -> ")[1], "AGENDA (series chess, no such series, can't file)");
-    assert.equal(verdictOf("Takeaway: synthetic lesson"), "TAKEAWAY");
-    assert.equal(line(journal("That was Acme.")).split(" -> ")[1], "RETAG to Acme (existing series)");
-    assert.equal(verdictOf("Not a session."), "NOT A SESSION");
-    assert.equal(verdictOf("Drop the synthetic trip from my agenda"), "DROP");
-    assert.equal(verdictOf("Debrief:"), "can't file: debrief with nothing after it");
+    assert.equal(verdictOf("Marty, start coaching session.", []), "START (new series)");
+    assert.equal(line(journal("Marty, start coaching session."), false, []).split(" -> ")[1], "START, series coaching (new series)");
+    assert.equal(line(journal("Marty, start session: Initech interview")).split(" -> ")[1], "START, series Initech interview (new series)");
+    assert.equal(verdictOf("Marty, start session."), "START");
+    assert.equal(verdictOf("Marty, end session"), "END");
+    assert.equal(verdictOf("Marty, debrief: synthetic notes."), "DEBRIEF");
+    assert.equal(verdictOf("Marty, agenda: the synthetic trip"), "AGENDA");
+    assert.equal(line(journal("Marty, agenda for therapy: the synthetic trip")).split(" -> ")[1], "AGENDA (series therapy, existing series)");
+    assert.equal(line(journal("Marty, agenda for chess: x")).split(" -> ")[1], "AGENDA (series chess, no such series, can't file)");
+    assert.equal(verdictOf("Marty, takeaway: synthetic lesson"), "TAKEAWAY");
+    assert.equal(line(journal("Marty, that was Acme.")).split(" -> ")[1], "RETAG to Acme (existing series)");
+    assert.equal(verdictOf("Marty, not a session."), "NOT A SESSION");
+    assert.equal(verdictOf("Marty, drop the synthetic trip from my agenda"), "DROP");
+    assert.equal(verdictOf("Marty, debrief:"), "can't file: debrief with nothing after it");
+    assert.equal(verdictOf("Marty, remember the synthetic milk"), "can't file: didn't understand");
     assert.equal(verdictOf("Remember the synthetic milk"), "plain note");
+    assert.equal(verdictOf("Start session."), 'plain note (no "Marty", so not a command)');
   });
 
-  it("shows what a Test: note would do", () => {
+  it("shows what a dry run would do", () => {
     assert.equal(
-      line(journal("Test: start coaching session"), false, []).split(" -> ")[1],
+      line(journal("Marty, test: start coaching session"), false, []).split(" -> ")[1],
       "Test: would be START, series coaching (new series)",
     );
-    assert.equal(verdictOf("Testing, end session."), "Test: would be END");
+    assert.equal(verdictOf("Test: Marty, end session."), "Test: would be END");
+    assert.equal(verdictOf("Testing, end session."), 'Test: would be plain note (no "Marty", so not a command)');
     assert.equal(verdictOf("Tests came back fine"), "plain note");
   });
 
   it("says when Bee's cleanup changes the verdict", () => {
-    const out = line(journal("And session.", "READY", "End session."));
-    assert.match(out, /heard "And session\." cleaned "End session\."/);
+    // Bee's cleanup drops the name; that alone doesn't count as a change.
+    const out = line(journal("Marty, and session.", "READY", "End session."));
+    assert.match(out, /heard "Marty, and session\." cleaned "End session\."/);
     assert.match(out, /-> END$/);
-    const changed = line(journal("Agenda the synthetic trip", "READY", "A gender: the synthetic trip"));
-    assert.match(changed, /\(cleanup changes the verdict: raw=AGENDA cleaned=plain note\)$/);
+    const changed = line(journal("Marty, agenda the synthetic trip", "READY", "A gender: the synthetic trip"));
+    assert.match(changed, /\(cleanup changes the verdict: raw=AGENDA cleaned=can't file: didn't understand\)$/);
   });
 
   it("waits for text", () => {
@@ -95,7 +99,7 @@ describe("describeEvent: voice notes", () => {
   });
 
   it("prints no text with shape", () => {
-    const out = line(journal("Start session: Initech interview", "READY", "Start session, Initech interview."), true);
+    const out = line(journal("Marty, start session: Initech interview", "READY", "Start session, Initech interview."), true);
     assert.equal(out, "16:02:05 journal …ab12 READY -> START (new series)");
     assert.doesNotMatch(out, /Initech/);
     const partial = classifyStreamEvent({ journalId: "jrnl-synthetic-cd34", text: "synthetic partial words" });
@@ -177,10 +181,10 @@ describe("the watcher against a fake bee stream", () => {
     assert.equal(code, 0);
     assert.deepEqual(printed, [
       "16:02:05 unrecognized event (keys: type)",
-      '16:02:05 journal-text …0001 3 words: "Test start coaching"',
+      '16:02:05 journal-text …0001 4 words: "Marty test start coaching"',
       "16:02:05 journal …0001 PROCESSING -> no text yet",
-      '16:02:05 journal …0001 READY heard "Test: start coaching session." -> Test: would be START, series coaching (new series)',
-      '16:02:05 journal …0001 READY heard "Test: start coaching session." -> Test: would be START, series coaching (new series)',
+      '16:02:05 journal …0001 READY heard "Marty, test: start coaching session." -> Test: would be START, series coaching (new series)',
+      '16:02:05 journal …0001 READY heard "Marty, test: start coaching session." -> Test: would be START, series coaching (new series)',
       "16:02:05 new-conversation 424242 CAPTURING",
       "16:02:05 unparsed line (15 characters)",
       "16:02:05 update-conversation 424242 COMPLETED",

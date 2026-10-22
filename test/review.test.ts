@@ -83,8 +83,8 @@ describe("how a guess is made", () => {
 
   it("files a named marker with no review", async () => {
     await run(t("12:00", "2026-10-21"), [talk(903, t("10:01", "2026-10-21"), t("10:40", "2026-10-21"))], [
-      note("m1", t("10:00", "2026-10-21"), "Start session: Acme interview"),
-      note("m2", t("10:41", "2026-10-21"), "End session"),
+      note("m1", t("10:00", "2026-10-21"), "Marty, Start session: Acme interview"),
+      note("m2", t("10:41", "2026-10-21"), "Marty, End session"),
     ]);
     assert.equal((await store.getLatestSession(acme.id))?.tag?.confidence, "certain");
     assert.deepEqual(await store.listReviewItems(), []);
@@ -188,11 +188,11 @@ describe("review by Bee button", () => {
     await store.putSeries(other);
     const day = "2026-10-21";
     await run(t("12:00", day), [talk(930, t("11:01", day), t("11:40", day))], [
-      note("r1", t("11:00", day), "Start session"),
-      note("r2", t("11:41", day), "End session"),
+      note("r1", t("11:00", day), "Marty, Start session"),
+      note("r2", t("11:41", day), "Marty, End session"),
     ]);
     assert.equal((await store.listReviewItems()).length, 1);
-    await run(t("12:15", day), [talk(930, t("11:01", day), t("11:40", day))], [note("r3", t("12:05", day), "That was Acme.")]);
+    await run(t("12:15", day), [talk(930, t("11:01", day), t("11:40", day))], [note("r3", t("12:05", day), "Marty, That was Acme.")]);
     assert.equal(await store.getLatestSession(other.id), null);
     assert.equal((await store.getLatestSession(acme.id))?.tag?.status, "confirmed");
     assert.deepEqual(await store.listReviewItems(), []);
@@ -205,7 +205,7 @@ describe("review by Bee button", () => {
   it("'Not a session' drops the session that just happened", async () => {
     const day = "2026-10-20";
     await run(t("18:30", day), [talk(940, t("17:02", day), t("17:55", day))]);
-    await run(t("18:45", day), [talk(940, t("17:02", day), t("17:55", day))], [note("x1", t("18:40", day), "Not a session")]);
+    await run(t("18:45", day), [talk(940, t("17:02", day), t("17:55", day))], [note("x1", t("18:40", day), "Marty, Not a session")]);
     assert.equal(await store.getLatestSession(therapy.id), null);
   });
 });

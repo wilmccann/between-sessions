@@ -88,12 +88,16 @@ Resources:
                   - logs:GetQueryResults
                   - logs:StopQuery
                 Resource: "*"
+              # DeleteItem: the local review page's edits (retag, not a
+              # session, remove agenda item) move and delete items in
+              # transactions, which need it for every delete.
               - Sid: SeedAndCountAppTable
                 Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
                   - dynamodb:GetItem
                   - dynamodb:PutItem
+                  - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:Scan
                 Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppPrefix}
