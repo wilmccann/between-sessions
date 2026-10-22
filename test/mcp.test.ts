@@ -50,6 +50,7 @@ describe("MCP tools", () => {
       "add_agenda_item",
       "get_last_session",
       "get_prep_brief",
+      "get_since_last_session",
       "help",
       "list_agenda",
       "list_sessions",
@@ -78,13 +79,13 @@ describe("MCP tools", () => {
     const res = await call("help");
     assert.ok(res.text.includes(BOUNDARY));
     const lines = res.text.split("\n").filter((l) => l.startsWith("- "));
-    assert.ok(lines.length >= 3 && lines.length <= 5, String(lines.length));
+    assert.ok(lines.length >= 3 && lines.length <= 4, String(lines.length));
     assert.match(res.text, /"Give me my prep brief"/);
   });
 
   it("lists the prompts for / and fills them in", async () => {
     const { prompts } = await client.listPrompts();
-    assert.deepEqual(prompts.map((p) => p.name).sort(), ["agenda", "help", "prep", "takeaway"]);
+    assert.deepEqual(prompts.map((p) => p.name).sort(), ["agenda", "help", "prep", "since", "takeaway"]);
     const agenda = await client.getPrompt({ name: "agenda", arguments: { item: "the work trip" } });
     assert.match((agenda.messages[0].content as { text: string }).text, /Add "the work trip" to my agenda/);
     const prep = await client.getPrompt({ name: "prep", arguments: {} });

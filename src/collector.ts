@@ -6,6 +6,7 @@
 // session. Only placed sessions reach the store.
 import { emptyCounts, fileNotes, readJournals, type ButtonCounts } from "./button.js";
 import { placeSessions, windowCandidates, type Candidate } from "./detect.js";
+import { computeDigest, topicWords, updateTallies } from "./digest.js";
 import { markerCandidates } from "./markers.js";
 import { OTHER_ID, otherSeries, type Series } from "./series.js";
 import { sessionInput, type Snapshot } from "./sessions.js";
@@ -22,6 +23,7 @@ export interface RunResult {
   replaced: number;
   written: SessionVersion[];
   button: ButtonCounts;
+  digests: number;
 }
 
 export async function recordSnapshot(store: SessionStore, seriesIn: Series[], snapshot: Snapshot): Promise<RunResult> {
@@ -44,7 +46,7 @@ export async function recordSnapshot(store: SessionStore, seriesIn: Series[], sn
   const candidates: Candidate[] = [...marked, ...series.flatMap((s) => windowCandidates(snapshot.conversations, s))];
   const placed = placeSessions(candidates, await store.listClaims());
 
-  const result: RunResult = { series: series.length, matched: placed.length, replaced: 0, written: [], button };
+  const result: RunResult = { series: series.length, matched: placed.length, replaced: 0, written: [], button, digests: 0 };
   const byId = new Map(series.map((s) => [s.id, s]));
   for (const { candidate, replaces } of placed) {
     const s = byId.get(candidate.seriesId)!;
@@ -59,5 +61,19 @@ export async function recordSnapshot(store: SessionStore, seriesIn: Series[], sn
   }
 
   await fileNotes(store, series, deferred, markers, now, button);
+  result.digests = await recordDigests(store, series, snapshot);
   return result;
+}
+
+// Running day tallies, then one digest per series (none for Other).
+async function recordDigests(store: SessionStore, series: Series[], snapshot: Snapshot): Promise<number> {
+  const withDigest = series.filter((s) => s.id !== OTHER_ID);
+  const lasts = await Promise.all(withDigest.map((s) => store.getLatestSession(s.id)));
+  const topics = withDigest.map((s, i) => topicWords(lasts[i], s));
+  const tallies = await store.listTallies();
+  await store.putTallies(updateTallies(tallies, snapshot, [...new Set(topics.flat())]));
+  for (const [i, s] of withDigest.entries()) {
+    await store.putDigest(computeDigest(s, lasts[i], tallies, snapshot, topics[i]));
+  }
+  return withDigest.length;
 }

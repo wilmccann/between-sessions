@@ -1,5 +1,6 @@
 // How sessions and briefs look in tool answers.
-import type { Series } from "../series.js";
+import { digestSentence } from "../digest.js";
+import { OTHER_ID, type Series } from "../series.js";
 import { formatLocal } from "../sessions.js";
 import { openAgenda } from "../store/agenda.js";
 import { buttonReceipt } from "../receipts.js";
@@ -47,6 +48,8 @@ export interface PrepBriefView {
   series: string;
   // What the Bee button filed lately, or null.
   fromBee: string | null;
+  // The digest in one paragraph; null for Other or before the first digest.
+  sinceLastSession: string | null;
   lastSessionLocal: string | null;
   shortSummary: string | null;
   note: string | null;
@@ -71,13 +74,14 @@ export function nextSessionView(series: Series, now = Date.now()) {
 
 export async function prepBrief(store: SessionStore, series: Series, now = Date.now()): Promise<PrepBriefView> {
   const latest = await store.getLatestSession(series.id);
-  const [agenda, takeaways, debriefs, brief, records, allSeries] = await Promise.all([
+  const [agenda, takeaways, debriefs, brief, records, allSeries, digest] = await Promise.all([
     store.listAgenda(series.id),
     latest ? store.listTakeaways(series.id, latest.start) : Promise.resolve([]),
     latest ? store.listDebriefs(series.id, latest.start) : Promise.resolve([]),
     latest ? store.getPrepBrief(series.id, latest.start) : Promise.resolve(null),
     store.listJournalRecords(),
     store.listSeries(),
+    series.id === OTHER_ID ? Promise.resolve(null) : store.getDigest(series.id),
   ]);
   const insights = latest?.insights ?? [];
   const relevant = brief?.relevantInsightIds.length
@@ -86,6 +90,7 @@ export async function prepBrief(store: SessionStore, series: Series, now = Date.
   return {
     series: series.name,
     fromBee: buttonReceipt(records, allSeries, now),
+    sinceLastSession: digest?.since ? digestSentence(digest, now) : null,
     lastSessionLocal: latest ? formatLocal(Date.parse(latest.start), series.timezone) : null,
     shortSummary: latest ? latest.parts.map((p) => p.shortSummary).join(" / ") : null,
     note: brief?.note ?? null,

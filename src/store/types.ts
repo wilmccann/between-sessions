@@ -116,6 +116,30 @@ export interface JournalRecord {
   reason?: string; // why it couldn't be filed
 }
 
+// A running record of one UTC day, kept by the collector so the digest can
+// count past Bee's 14-day history. Ids, times and topic-word hits only:
+// no summaries, no todo text.
+export interface DayTally {
+  date: string; // YYYY-MM-DD, UTC
+  conversations: { id: number; start: number }[];
+  todos: { id: number; createdAt: number }[];
+  topicHits: Record<string, number[]>; // topic word -> conversation ids
+}
+
+// What has happened since a series' last session, precomputed by the
+// collector so get_since_last_session reads one item.
+export interface Digest {
+  seriesId: string;
+  computedAt: string;
+  since: string | null; // the last session's end
+  conversations: number;
+  todos: number;
+  insightTitles: string[]; // newest first, at most 5
+  topics: { word: string; count: number }[]; // from the last session, that came up again
+  // The tallies don't reach back to `since`, so counts may be low.
+  partial: boolean;
+}
+
 export interface PrepBrief {
   seriesId: string;
   sessionStart: string; // the session it was written after
@@ -156,6 +180,10 @@ export interface SessionStore {
   listDebriefs(seriesId: string, sessionStart: string): Promise<Debrief[]>;
   putMarker(marker: Marker): Promise<void>;
   listMarkers(): Promise<Marker[]>; // oldest first
+  listTallies(): Promise<DayTally[]>; // oldest first
+  putTallies(tallies: DayTally[]): Promise<void>;
+  putDigest(digest: Digest): Promise<void>;
+  getDigest(seriesId: string): Promise<Digest | null>;
   putJournalRecord(record: JournalRecord): Promise<void>;
   listJournalRecords(): Promise<JournalRecord[]>; // oldest first
   putPrepBrief(brief: PrepBrief): Promise<void>;

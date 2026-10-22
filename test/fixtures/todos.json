@@ -1,0 +1,8 @@
+{
+  "todos": [
+    { "id": 3002, "text": "Synthetic todo two", "alarm_at": null, "completed": false, "created_at": 1792630000000, "corrections": [] },
+    { "id": 3001, "text": "Synthetic todo one", "alarm_at": null, "completed": false, "created_at": 1792620000000, "corrections": [] }
+  ],
+  "next_cursor": null,
+  "timezone": "America/Los_Angeles"
+}

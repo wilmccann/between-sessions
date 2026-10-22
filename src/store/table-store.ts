@@ -3,7 +3,8 @@
 //   PK = SERIES#<id>
 //   SK = CONFIG | SESSION#<startISO>#V#<collectedAt>
 //      | AGENDA#<createdISO>#<uuid> | TAKEAWAY#<sessionStartISO>#<uuid>
-//      | DEBRIEF#<sessionStartISO>#<journalId> | BRIEF#<sessionStartISO>
+//      | DEBRIEF#<sessionStartISO>#<journalId> | BRIEF#<sessionStartISO> | DIGEST
+//   PK = TALLIES, SK = DAY#<YYYY-MM-DD>: the collector's running day counts.
 //   PK = CLAIMS, SK = CONV#<conversationId>: which session holds each Bee
 //   conversation (see Claim).
 //   PK = MARKERS, SK = M#<atISO>#<journalId>: Bee button start/end markers.
@@ -14,7 +15,9 @@ import { normalizeSeries, type Series } from "../series.js";
 import type {
   AgendaItem,
   Claim,
+  DayTally,
   Debrief,
+  Digest,
   FromBee,
   JournalRecord,
   Marker,
@@ -49,6 +52,7 @@ const pk = (seriesId: string) => `SERIES#${seriesId}`;
 const CLAIMS = "CLAIMS";
 const MARKERS = "MARKERS";
 const JOURNALS = "JOURNALS";
+const TALLIES = "TALLIES";
 const claimSk = (conversationId: number) => `CONV#${conversationId}`;
 // Items that belong to one session and move with it.
 const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];
@@ -225,6 +229,23 @@ export class TableStore implements SessionStore {
 
   async listMarkers() {
     return (await this.table.query(MARKERS, "M#")).map((i) => strip<Marker>(i));
+  }
+
+  async listTallies() {
+    return (await this.table.query(TALLIES, "DAY#")).map((i) => strip<DayTally>(i));
+  }
+
+  async putTallies(tallies: DayTally[]) {
+    for (const t of tallies) await this.table.put({ PK: TALLIES, SK: `DAY#${t.date}`, ...t });
+  }
+
+  async putDigest(d: Digest) {
+    await this.table.put({ PK: pk(d.seriesId), SK: "DIGEST", ...d });
+  }
+
+  async getDigest(seriesId: string) {
+    const item = await this.table.get(pk(seriesId), "DIGEST");
+    return item ? strip<Digest>(item) : null;
   }
 
   async putJournalRecord(r: JournalRecord) {

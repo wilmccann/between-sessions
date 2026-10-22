@@ -4,9 +4,11 @@ import {
   listConversations,
   listInsights,
   listJournals,
+  listTodos,
   type BeeConversation,
   type BeeInsight,
   type BeeJournal,
+  type BeeTodo,
 } from "./bee/cli.js";
 import { hasSchedule, type Series } from "./series.js";
 import type { SessionInput, SessionTag } from "./store/types.js";
@@ -94,16 +96,18 @@ export interface Snapshot {
   conversations: BeeConversation[];
   insights: BeeInsight[];
   journals?: BeeJournal[];
+  todos?: BeeTodo[];
 }
 
 export async function collectSnapshot(now = Date.now()): Promise<Snapshot> {
   const since = now - LOOKBACK_DAYS * 24 * HOUR;
-  const [conversations, insights, journals] = await Promise.all([
+  const [conversations, insights, journals, todos] = await Promise.all([
     listConversations(since),
     listInsights(since),
     listJournals(since),
+    listTodos(since),
   ]);
-  return { collectedAt: new Date(now).toISOString(), conversations, insights, journals };
+  return { collectedAt: new Date(now).toISOString(), conversations, insights, journals, todos };
 }
 
 // What the store keeps for one session: the parts' summaries and the first

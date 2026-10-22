@@ -5,6 +5,7 @@ import { defineTool, text, type ToolDef } from "./tool.js";
 import addAgendaItem from "./tools/add-agenda-item.js";
 import getLastSession from "./tools/get-last-session.js";
 import getPrepBrief from "./tools/get-prep-brief.js";
+import getSinceLastSession from "./tools/get-since-last-session.js";
 import listAgenda from "./tools/list-agenda.js";
 import listSessions from "./tools/list-sessions.js";
 import removeAgendaItem from "./tools/remove-agenda-item.js";
@@ -25,6 +26,8 @@ export interface Capability {
   example: string;
   tools: ToolDef[];
   prompt?: CapabilityPrompt;
+  // In the spoken menu (three or four items); the rest are still tools.
+  inMenu: boolean;
 }
 
 const inSeries = (series?: string) => (series ? ` for ${series}` : "");
@@ -35,6 +38,7 @@ export const CAPABILITIES: Capability[] = [
     label: "prepare for your next session",
     example: "Give me my prep brief",
     tools: [getPrepBrief],
+    inMenu: true,
     prompt: {
       name: "prep",
       title: "Prep brief",
@@ -43,16 +47,31 @@ export const CAPABILITIES: Capability[] = [
     },
   },
   {
+    id: "since",
+    label: "hear what's happened since your last session",
+    example: "What's happened since my last session?",
+    tools: [getSinceLastSession],
+    inMenu: true,
+    prompt: {
+      name: "since",
+      title: "Since last session",
+      args: { series: "Which series, if you have more than one" },
+      text: ({ series }) => `What's happened since my last session${inSeries(series)}?`,
+    },
+  },
+  {
     id: "sessions",
     label: "look back at your last session, as Bee first summarized it",
     example: "What did we cover last session?",
     tools: [getLastSession, listSessions],
+    inMenu: false,
   },
   {
     id: "agenda",
     label: "keep an agenda for next time",
     example: "Add the work trip to my agenda",
     tools: [addAgendaItem, listAgenda, removeAgendaItem],
+    inMenu: true,
     prompt: {
       name: "agenda",
       title: "Agenda",
@@ -66,6 +85,7 @@ export const CAPABILITIES: Capability[] = [
     label: "save a takeaway from the session you just had",
     example: "Save a takeaway: delegate earlier",
     tools: [saveTakeaway],
+    inMenu: true,
     prompt: {
       name: "takeaway",
       title: "Save a takeaway",
@@ -78,6 +98,7 @@ export const CAPABILITIES: Capability[] = [
     id: "help",
     label: "say what you can ask",
     example: "What can I ask?",
+    inMenu: false,
     tools: [
       defineTool({
         name: "help",
@@ -100,7 +121,7 @@ export const BOUNDARY =
 
 // Short enough to speak: one line per capability, with one example each.
 export function menu(): string {
-  const items = CAPABILITIES.filter((c) => c.id !== "help").map((c) => `${c.label[0].toUpperCase()}${c.label.slice(1)}: "${c.example}"`);
+  const items = CAPABILITIES.filter((c) => c.inMenu).map((c) => `${c.label[0].toUpperCase()}${c.label.slice(1)}: "${c.example}"`);
   return `You can ask me to:\n${items.map((i) => `- ${i}`).join("\n")}`;
 }
 
@@ -110,6 +131,9 @@ export function instructions(): string {
     "",
     "When the user asks what they can do, answer with this menu in plain words, without tool names:",
     menu(),
+    `Also, when asked: ${CAPABILITIES.filter((c) => !c.inMenu && c.id !== "help")
+      .map((c) => `${c.label} ("${c.example}")`)
+      .join("; ")}.`,
     "",
     `For anything outside these, say: "${BOUNDARY}"`,
     "",

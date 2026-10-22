@@ -36,6 +36,13 @@ export interface BeeJournal {
   corrections?: unknown[];
 }
 
+export interface BeeTodo {
+  id: number;
+  text: string;
+  completed: boolean;
+  created_at: number; // epoch ms
+}
+
 interface Page {
   next_cursor?: string | null;
   [key: string]: unknown;
@@ -81,6 +88,10 @@ export function listConversations(sinceMs: number): Promise<BeeConversation[]> {
 
 export function listInsights(sinceMs: number): Promise<BeeInsight[]> {
   return listSince<BeeInsight>("insights", "insights", (i) => i.generated_at, sinceMs);
+}
+
+export function listTodos(sinceMs: number): Promise<BeeTodo[]> {
+  return listSince<BeeTodo>("todos", "todos", (t) => t.created_at, sinceMs);
 }
 
 export function listJournals(sinceMs: number): Promise<BeeJournal[]> {
