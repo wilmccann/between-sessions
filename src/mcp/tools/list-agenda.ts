@@ -8,6 +8,7 @@ export default defineTool({
     "List the things you planned to bring up at the next session in a series, oldest first. Items added before the last session are left out.",
   inputSchema: { series: seriesArg },
   annotations: { readOnlyHint: true },
+  next: "Want your prep brief too?",
   async run({ series: wanted }, { store }) {
     const { series, why, failure } = await chooseSeries(store, wanted, "next");
     if (!series) return failure;

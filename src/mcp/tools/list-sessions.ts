@@ -12,6 +12,7 @@ export default defineTool({
     limit: z.number().int().min(1).max(20).default(5).describe("How many sessions, 1 to 20. Defaults to 5."),
   },
   annotations: { readOnlyHint: true },
+  next: "Want the details of the most recent one?",
   async run({ series: wanted, limit }, { store }) {
     const { series, why, failure } = await chooseSeries(store, wanted, "recent");
     if (!series) return failure;

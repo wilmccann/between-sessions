@@ -7,6 +7,7 @@ export default defineTool({
   description:
     "Save your own takeaway from the most recent session, in your words, for example: my takeaway is to delegate earlier. It is filed under that session.",
   inputSchema: { series: seriesArg, text: noteText.describe("The takeaway, in a sentence or two.") },
+  next: "Anything to put on next time's agenda?",
   async run({ series: wanted, text: takeaway }, { store }) {
     const { series, why, failure } = await chooseSeries(store, wanted, "recent");
     if (!series) return failure;

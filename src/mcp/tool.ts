@@ -24,18 +24,31 @@ export function defineTool<S extends z.ZodRawShape>(def: {
   description: string;
   inputSchema: S;
   annotations?: ToolAnnotations;
+  // One suggested next step, added to every successful answer.
+  next?: string;
   run: (args: z.infer<z.ZodObject<S>>, ctx: ToolContext) => Promise<CallToolResult>;
 }): ToolDef {
-  const { name, title, description, inputSchema, annotations, run } = def;
+  const { name, title, description, inputSchema, annotations, next, run } = def;
   return {
     name,
     title,
     description,
     register(server, ctx) {
-      server.registerTool(name, { title, description, inputSchema, annotations }, ((args: z.infer<z.ZodObject<S>>) =>
-        run(args, ctx)) as never);
+      server.registerTool(name, { title, description, inputSchema, annotations }, (async (args: z.infer<z.ZodObject<S>>) =>
+        withNext(next, await run(args, ctx))) as never);
     },
   };
+}
+
+// JSON answers get a `next` field; text answers get a "Next:" line.
+export function withNext(next: string | undefined, answer: CallToolResult): CallToolResult {
+  if (!next || answer.isError) return answer;
+  const [first, ...rest] = answer.content;
+  if (first?.type !== "text") return answer;
+  const body = first.text.startsWith("{")
+    ? JSON.stringify({ ...JSON.parse(first.text), next }, null, 2)
+    : `${first.text}\nNext: ${next}`;
+  return { ...answer, content: [{ type: "text", text: body }, ...rest] };
 }
 
 export const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });

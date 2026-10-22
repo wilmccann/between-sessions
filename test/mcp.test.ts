@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { beforeEach, describe, it } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { CAPABILITIES } from "../src/mcp/capabilities.js";
+import { BOUNDARY, CAPABILITIES, menu } from "../src/mcp/capabilities.js";
 import { createMcpServer, type PrepBriefView, type SessionView } from "../src/mcp/server.js";
 import { fileStore } from "../src/store/file-store.js";
 import type { TableStore } from "../src/store/table-store.js";
@@ -50,6 +50,7 @@ describe("MCP tools", () => {
       "add_agenda_item",
       "get_last_session",
       "get_prep_brief",
+      "help",
       "list_agenda",
       "list_sessions",
       "save_takeaway",
@@ -62,6 +63,39 @@ describe("MCP tools", () => {
     const listed = CAPABILITIES.flatMap((c) => c.tools.map((t) => t.name));
     assert.equal(new Set(listed).size, listed.length);
     assert.deepEqual(tools.map((t) => t.name).sort(), [...listed].sort());
+  });
+
+  it("sends instructions with the menu, the boundary and no tool names", async () => {
+    const said = client.getInstructions() ?? "";
+    assert.ok(said.includes(menu()));
+    assert.ok(said.includes(BOUNDARY));
+    const { tools } = await client.listTools();
+    for (const t of tools) assert.ok(!menu().includes(t.name), t.name);
+  });
+
+  it("answers help with a short menu and the boundary sentence", async () => {
+    const res = await call("help");
+    assert.ok(res.text.includes(BOUNDARY));
+    const lines = res.text.split("\n").filter((l) => l.startsWith("- "));
+    assert.ok(lines.length >= 3 && lines.length <= 5, String(lines.length));
+    assert.match(res.text, /"Give me my prep brief"/);
+  });
+
+  it("lists the prompts for / and fills them in", async () => {
+    const { prompts } = await client.listPrompts();
+    assert.deepEqual(prompts.map((p) => p.name).sort(), ["agenda", "help", "prep", "takeaway"]);
+    const agenda = await client.getPrompt({ name: "agenda", arguments: { item: "the work trip" } });
+    assert.match((agenda.messages[0].content as { text: string }).text, /Add "the work trip" to my agenda/);
+    const prep = await client.getPrompt({ name: "prep", arguments: {} });
+    assert.match((prep.messages[0].content as { text: string }).text, /prep brief/);
+  });
+
+  it("ends every answer with one next step", async () => {
+    await store.putSessionVersion(series.id, PAST);
+    assert.match((await call("add_agenda_item", { text: "Ask about the offsite" })).text, /\nNext: .+\?$/);
+    const brief = await callJson<{ next: string }>("get_prep_brief");
+    assert.match(brief.next, /agenda/);
+    assert.ok(!(await call("get_last_session", { series: "nope" })).text.includes("Next:"));
   });
 
   it("answers plainly when nothing is stored yet", async () => {
