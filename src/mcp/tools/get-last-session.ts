@@ -1,5 +1,5 @@
 import { describeSession } from "../views.js";
-import { defineTool, json, seriesArg, text, withSeries } from "../tool.js";
+import { chooseSeries, defineTool, json, say, seriesArg, text } from "../tool.js";
 
 export default defineTool({
   name: "get_last_session",
@@ -9,10 +9,10 @@ export default defineTool({
   inputSchema: { series: seriesArg },
   annotations: { readOnlyHint: true },
   async run({ series: wanted }, { store }) {
-    const { series, failure } = await withSeries(store, wanted);
+    const { series, why, failure } = await chooseSeries(store, wanted, "recent");
     if (!series) return failure;
     const latest = await store.getLatestSession(series.id);
     if (!latest) return text(`There's no ${series.name} session recorded yet.`);
-    return json(describeSession(series, latest));
+    return say(why, json(describeSession(series, latest)));
   },
 });

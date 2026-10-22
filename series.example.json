@@ -6,7 +6,15 @@
     "weekday": 2,
     "windowStart": "17:00",
     "windowEnd": "18:00",
+    "spokenNames": ["coaching"],
+    "captureKeywords": ["coach"],
     "minDurationMinutes": 30,
     "insightWindowHours": 72
+  },
+  {
+    "id": "acme-interview",
+    "name": "Acme interview",
+    "timezone": "America/Los_Angeles",
+    "captureKeywords": ["acme"]
   }
 ]

@@ -1,5 +1,5 @@
 import { openAgenda } from "../../store/agenda.js";
-import { defineTool, json, seriesArg, text, withSeries } from "../tool.js";
+import { chooseSeries, defineTool, json, say, seriesArg, text } from "../tool.js";
 
 export default defineTool({
   name: "list_agenda",
@@ -9,10 +9,10 @@ export default defineTool({
   inputSchema: { series: seriesArg },
   annotations: { readOnlyHint: true },
   async run({ series: wanted }, { store }) {
-    const { series, failure } = await withSeries(store, wanted);
+    const { series, why, failure } = await chooseSeries(store, wanted, "next");
     if (!series) return failure;
     const open = openAgenda(await store.listAgenda(series.id), await store.getLatestSession(series.id));
-    if (!open.length) return text(`Your ${series.name} agenda is empty.`);
-    return json({ series: series.name, items: open.map(({ text, createdAt }) => ({ text, createdAt })) });
+    if (!open.length) return say(why, text(`Your ${series.name} agenda is empty.`));
+    return say(why, json({ series: series.name, items: open.map(({ text, createdAt }) => ({ text, createdAt })) }));
   },
 });

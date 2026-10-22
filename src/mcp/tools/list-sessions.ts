@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { formatLocal } from "../../sessions.js";
-import { defineTool, json, minutes, seriesArg, text, withSeries } from "../tool.js";
+import { chooseSeries, defineTool, json, minutes, say, seriesArg, text } from "../tool.js";
 
 export default defineTool({
   name: "list_sessions",
@@ -13,11 +13,11 @@ export default defineTool({
   },
   annotations: { readOnlyHint: true },
   async run({ series: wanted, limit }, { store }) {
-    const { series, failure } = await withSeries(store, wanted);
+    const { series, why, failure } = await chooseSeries(store, wanted, "recent");
     if (!series) return failure;
     const sessions = await store.listSessions(series.id, limit);
     if (!sessions.length) return text(`There's no ${series.name} session recorded yet.`);
-    return json({
+    return say(why, json({
       series: series.name,
       sessions: sessions.map((v) => ({
         startedAt: v.start,
@@ -26,6 +26,6 @@ export default defineTool({
         parts: v.parts.length,
         versions: v.versions,
       })),
-    });
+    }));
   },
 });

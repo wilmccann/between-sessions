@@ -1,40 +1,13 @@
 // Matches Bee conversations to a Series and gathers the first batch of
 // insights Bee generated after each session.
 import { listConversations, listInsights, type BeeConversation, type BeeInsight } from "./bee/cli.js";
-import type { Series } from "./series.js";
+import { hasSchedule, type Series } from "./series.js";
 import type { SessionInput } from "./store/types.js";
+import { formatLocal, HOUR, localParts, toMinutes } from "./time.js";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const HOUR = 3_600_000;
 const LOOKBACK_DAYS = 21;
 
-function localParts(ms: number, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(ms);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return {
-    weekday: WEEKDAYS.indexOf(get("weekday")),
-    minutes: Number(get("hour")) * 60 + Number(get("minute")),
-  };
-}
-
-const toMinutes = (hhmm: string) => {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
-};
-
-export function formatLocal(ms: number, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(ms);
-}
+export { formatLocal };
 
 // Bee can split one session into several conversations, so a session is
 // every conversation that overlaps the series window by at least
@@ -46,6 +19,7 @@ export interface Session {
 }
 
 export function matchSessions(conversations: BeeConversation[], series: Series): Session[] {
+  if (!hasSchedule(series)) return [];
   const windowStart = toMinutes(series.windowStart);
   const windowEnd = toMinutes(series.windowEnd);
   const byDay = new Map<string, { parts: BeeConversation[]; overlap: number }>();

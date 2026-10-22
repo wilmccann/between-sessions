@@ -1,16 +1,16 @@
 import { prepBrief } from "../views.js";
-import { defineTool, json, seriesArg, withSeries } from "../tool.js";
+import { chooseSeries, defineTool, json, say, seriesArg } from "../tool.js";
 
 export default defineTool({
   name: "get_prep_brief",
   title: "Prep brief",
   description:
-    "Get a short brief to prepare for the next session: when the last one was, what it covered, Bee's insights after it, your takeaways, and your open agenda items.",
+    "Get a short brief to prepare for the next session: when the last one was, what it covered, Bee's insights after it, your takeaways, your open agenda items, and when the next session is.",
   inputSchema: { series: seriesArg },
   annotations: { readOnlyHint: true },
   async run({ series: wanted }, { store }) {
-    const { series, failure } = await withSeries(store, wanted);
+    const { series, why, failure } = await chooseSeries(store, wanted, "next");
     if (!series) return failure;
-    return json(await prepBrief(store, series));
+    return say(why, json(await prepBrief(store, series)));
   },
 });

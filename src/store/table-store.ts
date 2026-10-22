@@ -5,7 +5,7 @@
 //      | AGENDA#<createdISO>#<uuid> | TAKEAWAY#<sessionStartISO>#<uuid>
 //      | BRIEF#<sessionStartISO>
 import { createHash, randomUUID } from "node:crypto";
-import type { Series } from "../series.js";
+import { normalizeSeries, type Series } from "../series.js";
 import type {
   AgendaItem,
   PrepBrief,
@@ -79,8 +79,16 @@ export class TableStore implements SessionStore {
     return [...byStart.values()];
   }
 
+  // Strictly increasing within this process, so items added in the same
+  // millisecond keep their order.
+  private last = 0;
+  private stamp() {
+    this.last = Math.max(Date.now(), this.last + 1);
+    return new Date(this.last).toISOString();
+  }
+
   async addAgendaItem(seriesId: string, text: string) {
-    const item: AgendaItem = { id: randomUUID(), seriesId, text, createdAt: new Date().toISOString() };
+    const item: AgendaItem = { id: randomUUID(), seriesId, text, createdAt: this.stamp() };
     await this.table.put({ PK: pk(seriesId), SK: `AGENDA#${item.createdAt}#${item.id}`, ...item });
     return item;
   }
@@ -111,12 +119,12 @@ export class TableStore implements SessionStore {
 
   async getSeries(id: string) {
     const item = await this.table.get(pk(id), "CONFIG");
-    return item ? strip<Series>(item) : null;
+    return item ? normalizeSeries(strip(item)) : null;
   }
 
   async listSeries() {
     const items = await this.table.scanSk("CONFIG");
-    return items.map((i) => strip<Series>(i)).sort((a, b) => a.id.localeCompare(b.id));
+    return items.map((i) => normalizeSeries(strip(i))).sort((a, b) => a.id.localeCompare(b.id));
   }
 
   async putSeries(series: Series) {

@@ -3,6 +3,7 @@ import type { Series } from "../series.js";
 import { formatLocal } from "../sessions.js";
 import { openAgenda } from "../store/agenda.js";
 import type { SessionStore, SessionVersion } from "../store/types.js";
+import { formatShort, nextSession } from "../time.js";
 import { minutes } from "./tool.js";
 
 export function describeSession(series: Series, v: SessionVersion) {
@@ -38,10 +39,21 @@ export interface PrepBriefView {
   insightTitles: string[];
   openAgenda: string[];
   takeaways: string[];
+  // From the series' schedule; "not scheduled" when it has none.
+  nextSession: string;
+  nextSessionAt: string | null;
   source: "bedrock" | "assembled";
 }
 
-export async function prepBrief(store: SessionStore, series: Series): Promise<PrepBriefView> {
+export function nextSessionView(series: Series, now = Date.now()) {
+  const next = nextSession(series, now);
+  return {
+    nextSession: next ? formatShort(next.start, series.timezone) : "not scheduled",
+    nextSessionAt: next ? new Date(next.start).toISOString() : null,
+  };
+}
+
+export async function prepBrief(store: SessionStore, series: Series, now = Date.now()): Promise<PrepBriefView> {
   const latest = await store.getLatestSession(series.id);
   const [agenda, takeaways, brief] = await Promise.all([
     store.listAgenda(series.id),
@@ -61,6 +73,7 @@ export async function prepBrief(store: SessionStore, series: Series): Promise<Pr
     insightTitles: relevant.map((i) => i.title),
     openAgenda: openAgenda(agenda, latest).map((a) => a.text),
     takeaways: takeaways.map((t) => t.text),
+    ...nextSessionView(series, now),
     source: brief ? "bedrock" : "assembled",
   };
 }
