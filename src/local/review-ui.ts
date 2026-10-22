@@ -26,6 +26,7 @@ import { fileStore } from "../store/file-store.js";
 import { itemKeys } from "../store/table-store.js";
 import type { SessionStore } from "../store/types.js";
 import { formatShort } from "../time.js";
+import { scheduleRoute } from "./schedule-ui.js";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SESSIONS_PER_SERIES = 20;
@@ -221,6 +222,10 @@ export function reviewServer(store: SessionStore, token: string, opts: ReviewSta
 
 async function route(store: SessionStore, req: IncomingMessage, res: ServerResponse, url: URL, opts: ReviewStateOptions) {
   const path = url.pathname;
+  if (path === "/schedule" || path.startsWith("/api/schedule")) {
+    const reply = await scheduleRoute(store, req.method ?? "GET", url, () => readJson(req));
+    if (reply) return send(res, reply.status, reply.body);
+  }
   if (req.method === "GET" && path === "/") return send(res, 200, PAGE);
   if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store, opts));
   if (req.method === "GET" && path === "/api/summary") {
@@ -307,13 +312,14 @@ const PAGE = /* html */ `<!doctype html>
 </head>
 <body>
 <h1>Between Sessions: review</h1>
-<p class="muted">Local only (127.0.0.1). Summaries stay hidden unless you press "show".</p>
+<p><a id="nav-schedule">Schedule</a> <span class="muted">Local only (127.0.0.1). Summaries stay hidden unless you press "show".</span></p>
 <div id="readback" role="status"></div>
 <div id="filters"></div>
 <div id="app">Loading...</div>
 <script>
 "use strict";
 const token = new URLSearchParams(location.search).get("token") || "";
+document.getElementById("nav-schedule").setAttribute("href", "/schedule?token=" + encodeURIComponent(token));
 let state = null;
 
 async function api(path, body) {
