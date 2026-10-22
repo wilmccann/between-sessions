@@ -139,8 +139,10 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.anthropic.claude-sonnet-5-5
                   - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-2-lite-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/anthropic.claude-sonnet-5-5*
                   - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/amazon.nova-lite-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0
       Tags:
         - Key: project
           Value: between-sessions
