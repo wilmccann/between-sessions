@@ -14,6 +14,12 @@ export default defineTool({
     if (!series) return failure;
     const open = openAgenda(await store.listAgenda(series.id), await store.getLatestSession(series.id));
     if (!open.length) return say(why, text(`Your ${series.name} agenda is empty.`));
-    return say(why, json({ series: series.name, items: open.map(({ text, createdAt }) => ({ text, createdAt })) }));
+    return say(
+      why,
+      json({
+        series: series.name,
+        items: open.map(({ text, createdAt, source }) => ({ text, createdAt, from: source === "bee" ? "Bee button" : "you" })),
+      }),
+    );
   },
 });

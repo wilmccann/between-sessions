@@ -2,16 +2,29 @@
 import type { Series } from "../series.js";
 import { formatLocal } from "../sessions.js";
 import { openAgenda } from "../store/agenda.js";
-import type { SessionStore, SessionVersion } from "../store/types.js";
+import { buttonReceipt } from "../receipts.js";
+import type { AgendaItem, Debrief, SessionStore, SessionVersion } from "../store/types.js";
 import { formatShort, nextSession } from "../time.js";
 import { minutes } from "./tool.js";
 
-export function describeSession(series: Series, v: SessionVersion) {
+// How a session was found: marked with the Bee button, or inferred from the
+// schedule, and whether it's waiting for your review.
+export const foundBy = (v: SessionVersion) => ({
+  source: v.tag?.source ?? "schedule",
+  status: v.tag?.status ?? "auto",
+  reason: v.tag?.reason ?? "",
+});
+
+const agendaText = (a: AgendaItem) => (a.source === "bee" ? `${a.text} (from Bee)` : a.text);
+
+export function describeSession(series: Series, v: SessionVersion, debriefs: Debrief[] = []) {
   return {
     series: series.name,
     startedAt: v.start,
     startedAtLocal: formatLocal(Date.parse(v.start), series.timezone),
     durationMinutes: minutes(v.start, v.end),
+    foundBy: foundBy(v),
+    debriefs: debriefs.map((d) => d.text),
     parts: v.parts.map((p) => ({
       startedAtLocal: formatLocal(Date.parse(p.start), series.timezone),
       durationMinutes: minutes(p.start, p.end),
@@ -32,6 +45,8 @@ export type SessionView = ReturnType<typeof describeSession>;
 // otherwise the same fields assembled from the store.
 export interface PrepBriefView {
   series: string;
+  // What the Bee button filed lately, or null.
+  fromBee: string | null;
   lastSessionLocal: string | null;
   shortSummary: string | null;
   note: string | null;
@@ -39,6 +54,7 @@ export interface PrepBriefView {
   insightTitles: string[];
   openAgenda: string[];
   takeaways: string[];
+  debriefs: string[];
   // From the series' schedule; "not scheduled" when it has none.
   nextSession: string;
   nextSessionAt: string | null;
@@ -55,10 +71,13 @@ export function nextSessionView(series: Series, now = Date.now()) {
 
 export async function prepBrief(store: SessionStore, series: Series, now = Date.now()): Promise<PrepBriefView> {
   const latest = await store.getLatestSession(series.id);
-  const [agenda, takeaways, brief] = await Promise.all([
+  const [agenda, takeaways, debriefs, brief, records, allSeries] = await Promise.all([
     store.listAgenda(series.id),
     latest ? store.listTakeaways(series.id, latest.start) : Promise.resolve([]),
+    latest ? store.listDebriefs(series.id, latest.start) : Promise.resolve([]),
     latest ? store.getPrepBrief(series.id, latest.start) : Promise.resolve(null),
+    store.listJournalRecords(),
+    store.listSeries(),
   ]);
   const insights = latest?.insights ?? [];
   const relevant = brief?.relevantInsightIds.length
@@ -66,13 +85,15 @@ export async function prepBrief(store: SessionStore, series: Series, now = Date.
     : insights;
   return {
     series: series.name,
+    fromBee: buttonReceipt(records, allSeries, now),
     lastSessionLocal: latest ? formatLocal(Date.parse(latest.start), series.timezone) : null,
     shortSummary: latest ? latest.parts.map((p) => p.shortSummary).join(" / ") : null,
     note: brief?.note ?? null,
     bullets: brief?.bullets ?? [],
     insightTitles: relevant.map((i) => i.title),
-    openAgenda: openAgenda(agenda, latest).map((a) => a.text),
+    openAgenda: openAgenda(agenda, latest).map(agendaText),
     takeaways: takeaways.map((t) => t.text),
+    debriefs: debriefs.map((d) => d.text),
     ...nextSessionView(series, now),
     source: brief ? "bedrock" : "assembled",
   };

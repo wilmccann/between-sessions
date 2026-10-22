@@ -60,11 +60,21 @@ export interface SessionVersion extends SessionInput {
   versions: number; // how many versions of this session exist, this one included
 }
 
+// Who added something: you, typing, or your Bee button (a voice note).
+export type ItemSource = "you" | "bee";
+export interface FromBee {
+  source?: ItemSource;
+  journalId?: string;
+  createdAt?: string; // a voice note's own time, not when it was filed
+}
+
 export interface AgendaItem {
   id: string;
   seriesId: string;
   text: string;
   createdAt: string;
+  source?: ItemSource; // missing means "you"
+  journalId?: string;
 }
 
 export interface Takeaway {
@@ -73,6 +83,37 @@ export interface Takeaway {
   sessionStart: string; // the session it belongs to
   text: string;
   createdAt: string;
+  source?: ItemSource;
+  journalId?: string;
+}
+
+// Your debrief, in your words, from a "Debrief: ..." voice note.
+export interface Debrief {
+  id: string; // the journal id
+  seriesId: string;
+  sessionStart: string;
+  text: string;
+  createdAt: string;
+}
+
+// A Bee button "start session" or "end session", at the voice note's time.
+export interface Marker {
+  journalId: string;
+  kind: "start" | "end";
+  at: string; // ISO
+  seriesId?: string; // missing when no series was named
+  unclear?: boolean; // a name was given but matched more than one series
+}
+
+// What happened to each Bee voice note, so each is used once and the next
+// brief can say what was filed. Holds no note text.
+export interface JournalRecord {
+  journalId: string;
+  at: string; // the note's time
+  kind: string; // a command kind, or "note" for anything else
+  status: "filed" | "unfiled" | "ignored";
+  seriesId?: string;
+  reason?: string; // why it couldn't be filed
 }
 
 export interface PrepBrief {
@@ -106,10 +147,17 @@ export interface SessionStore {
   getLatestSession(seriesId: string): Promise<SessionVersion | null>;
   // Latest version of each session, newest session first.
   listSessions(seriesId: string, limit: number): Promise<SessionVersion[]>;
-  addAgendaItem(seriesId: string, text: string): Promise<AgendaItem>;
+  addAgendaItem(seriesId: string, text: string, from?: FromBee): Promise<AgendaItem>;
   listAgenda(seriesId: string): Promise<AgendaItem[]>;
-  saveTakeaway(seriesId: string, sessionStart: string, text: string): Promise<Takeaway>;
+  removeAgendaItem(item: AgendaItem): Promise<void>;
+  saveTakeaway(seriesId: string, sessionStart: string, text: string, from?: FromBee): Promise<Takeaway>;
   listTakeaways(seriesId: string, sessionStart?: string): Promise<Takeaway[]>;
+  saveDebrief(debrief: Debrief): Promise<void>;
+  listDebriefs(seriesId: string, sessionStart: string): Promise<Debrief[]>;
+  putMarker(marker: Marker): Promise<void>;
+  listMarkers(): Promise<Marker[]>; // oldest first
+  putJournalRecord(record: JournalRecord): Promise<void>;
+  listJournalRecords(): Promise<JournalRecord[]>; // oldest first
   putPrepBrief(brief: PrepBrief): Promise<void>;
   getPrepBrief(seriesId: string, sessionStart: string): Promise<PrepBrief | null>;
   getSeries(id: string): Promise<Series | null>;

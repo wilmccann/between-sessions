@@ -7,6 +7,7 @@ import getLastSession from "./tools/get-last-session.js";
 import getPrepBrief from "./tools/get-prep-brief.js";
 import listAgenda from "./tools/list-agenda.js";
 import listSessions from "./tools/list-sessions.js";
+import removeAgendaItem from "./tools/remove-agenda-item.js";
 import saveTakeaway from "./tools/save-takeaway.js";
 
 export interface CapabilityPrompt {
@@ -51,7 +52,7 @@ export const CAPABILITIES: Capability[] = [
     id: "agenda",
     label: "keep an agenda for next time",
     example: "Add the work trip to my agenda",
-    tools: [addAgendaItem, listAgenda],
+    tools: [addAgendaItem, listAgenda, removeAgendaItem],
     prompt: {
       name: "agenda",
       title: "Agenda",

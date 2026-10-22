@@ -3,15 +3,21 @@
 //   PK = SERIES#<id>
 //   SK = CONFIG | SESSION#<startISO>#V#<collectedAt>
 //      | AGENDA#<createdISO>#<uuid> | TAKEAWAY#<sessionStartISO>#<uuid>
-//      | BRIEF#<sessionStartISO>
+//      | DEBRIEF#<sessionStartISO>#<journalId> | BRIEF#<sessionStartISO>
 //   PK = CLAIMS, SK = CONV#<conversationId>: which session holds each Bee
 //   conversation (see Claim).
+//   PK = MARKERS, SK = M#<atISO>#<journalId>: Bee button start/end markers.
+//   PK = JOURNALS, SK = J#<atISO>#<journalId>: what each voice note did.
 // LATEST#SESSION items written by earlier versions are ignored.
 import { createHash, randomUUID } from "node:crypto";
 import { normalizeSeries, type Series } from "../series.js";
 import type {
   AgendaItem,
   Claim,
+  Debrief,
+  FromBee,
+  JournalRecord,
+  Marker,
   PrepBrief,
   SessionInput,
   SessionRef,
@@ -41,6 +47,8 @@ export interface Table {
 
 const pk = (seriesId: string) => `SERIES#${seriesId}`;
 const CLAIMS = "CLAIMS";
+const MARKERS = "MARKERS";
+const JOURNALS = "JOURNALS";
 const claimSk = (conversationId: number) => `CONV#${conversationId}`;
 // Items that belong to one session and move with it.
 const ATTACHED = ["TAKEAWAY#", "DEBRIEF#"];
@@ -163,8 +171,15 @@ export class TableStore implements SessionStore {
     return new Date(this.last).toISOString();
   }
 
-  async addAgendaItem(seriesId: string, text: string) {
-    const item: AgendaItem = { id: randomUUID(), seriesId, text, createdAt: this.stamp() };
+  async addAgendaItem(seriesId: string, text: string, from: FromBee = {}) {
+    const item: AgendaItem = {
+      id: randomUUID(),
+      seriesId,
+      text,
+      createdAt: from.createdAt ?? this.stamp(),
+      ...(from.source && { source: from.source }),
+      ...(from.journalId && { journalId: from.journalId }),
+    };
     await this.table.put({ PK: pk(seriesId), SK: `AGENDA#${item.createdAt}#${item.id}`, ...item });
     return item;
   }
@@ -173,8 +188,20 @@ export class TableStore implements SessionStore {
     return (await this.table.query(pk(seriesId), "AGENDA#")).map((i) => strip<AgendaItem>(i));
   }
 
-  async saveTakeaway(seriesId: string, sessionStart: string, text: string) {
-    const item: Takeaway = { id: randomUUID(), seriesId, sessionStart, text, createdAt: new Date().toISOString() };
+  async removeAgendaItem(item: AgendaItem) {
+    await this.table.transact([{ delete: { PK: pk(item.seriesId), SK: `AGENDA#${item.createdAt}#${item.id}` } }]);
+  }
+
+  async saveTakeaway(seriesId: string, sessionStart: string, text: string, from: FromBee = {}) {
+    const item: Takeaway = {
+      id: randomUUID(),
+      seriesId,
+      sessionStart,
+      text,
+      createdAt: from.createdAt ?? new Date().toISOString(),
+      ...(from.source && { source: from.source }),
+      ...(from.journalId && { journalId: from.journalId }),
+    };
     await this.table.put({ PK: pk(seriesId), SK: `TAKEAWAY#${sessionStart}#${item.id}`, ...item });
     return item;
   }
@@ -182,6 +209,30 @@ export class TableStore implements SessionStore {
   async listTakeaways(seriesId: string, sessionStart?: string) {
     const prefix = sessionStart ? `TAKEAWAY#${sessionStart}#` : "TAKEAWAY#";
     return (await this.table.query(pk(seriesId), prefix)).map((i) => strip<Takeaway>(i));
+  }
+
+  async saveDebrief(d: Debrief) {
+    await this.table.put({ PK: pk(d.seriesId), SK: `DEBRIEF#${d.sessionStart}#${d.id}`, ...d });
+  }
+
+  async listDebriefs(seriesId: string, sessionStart: string) {
+    return (await this.table.query(pk(seriesId), `DEBRIEF#${sessionStart}#`)).map((i) => strip<Debrief>(i));
+  }
+
+  async putMarker(m: Marker) {
+    await this.table.put({ PK: MARKERS, SK: `M#${m.at}#${m.journalId}`, ...m });
+  }
+
+  async listMarkers() {
+    return (await this.table.query(MARKERS, "M#")).map((i) => strip<Marker>(i));
+  }
+
+  async putJournalRecord(r: JournalRecord) {
+    await this.table.put({ PK: JOURNALS, SK: `J#${r.at}#${r.journalId}`, ...r });
+  }
+
+  async listJournalRecords() {
+    return (await this.table.query(JOURNALS, "J#")).map((i) => strip<JournalRecord>(i));
   }
 
   async putPrepBrief(brief: PrepBrief) {

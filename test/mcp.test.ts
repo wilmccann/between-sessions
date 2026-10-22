@@ -53,6 +53,7 @@ describe("MCP tools", () => {
       "help",
       "list_agenda",
       "list_sessions",
+      "remove_agenda_item",
       "save_takeaway",
     ]);
     for (const t of tools) assert.ok((t.description ?? "").length > 40, t.name);
