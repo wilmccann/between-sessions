@@ -14,7 +14,7 @@ Bee hears your whole day. Between Sessions is for when you don't want a digital 
 - **Your data, your account.** It copies only those sessions into DynamoDB in your own AWS account, before the free tier's roughly two-week window rolls past them.
 - **Talk to it through the Bee.** Hold the button and say "Marty, …". The name keeps commands apart from ordinary notes.
 
-> Status: built for the Build, Ship, Shape: Amazon Developer Hackathon (Bee track). The collector, the session store and the remote MCP server run on AWS; the Bedrock notes are built and ship switched off. If the demo video doesn't play, [docs/DEMO_FALLBACK.md](docs/DEMO_FALLBACK.md) walks through one evening on a real Bee with screenshots.
+> Status: built for the Build, Ship, Shape: Amazon Developer Hackathon (Bee track). The collector, the session store and the remote MCP server run on AWS; the Bedrock notes are built and ship switched off. If the demo video doesn't play, [docs/DEMO_FALLBACK.md](docs/DEMO_FALLBACK.md) walks through one evening on a real Bee with screenshots. To try it on localhost without a Bee device or AWS, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Architecture
 

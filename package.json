@@ -17,6 +17,7 @@
     "show": "tsx scripts/check-mcp.ts --full",
     "check:remote": "tsx scripts/check-remote.ts",
     "seed": "tsx scripts/seed-series.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts",
     "try-notes": "tsx scripts/try-notes.ts",
     "cdk": "cdk",
     "typecheck": "tsc --noEmit",

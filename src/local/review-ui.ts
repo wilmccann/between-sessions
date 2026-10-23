@@ -227,7 +227,8 @@ async function route(store: SessionStore, beeData: BeeData, req: IncomingMessage
   if (req.method === "GET" && path === "/") return send(res, 200, PAGE);
   if (req.method === "GET" && path === "/api/state") return send(res, 200, await reviewState(store, opts));
   if (req.method === "GET" && path === "/api/bee") {
-    const days = Number(q.get("days") ?? DEFAULT_DAYS);
+    // BEE_DAYS widens the default window, for example to read dated demo data.
+    const days = Number(q.get("days") ?? process.env.BEE_DAYS ?? DEFAULT_DAYS);
     if (!Number.isInteger(days) || days < 1 || days > MAX_DAYS) throw new HttpError(400, `days must be a whole number from 1 to ${MAX_DAYS}`);
     return send(res, 200, await beeData.rows(days, q.get("refresh") === "1"));
   }
