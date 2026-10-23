@@ -13,9 +13,8 @@ import { beeConversation, beeInsight, beeJournal, dynamoGet, dynamoQuery, type L
 
 export const DEFAULT_DAYS = 14;
 export const MAX_DAYS = 60;
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 100; // Bee's maximum; a larger --limit is a Bad Request
 const MAX_PAGES = 30;
-export const INSIGHT_LIMIT = 200;
 // One read is kept until Refresh: each `bee` call is a process, and each can
 // cost a Keychain prompt.
 const CACHE_MS = Infinity;
@@ -188,8 +187,7 @@ export class BeeData {
     // One at a time: the CLI's first call unlocks the Keychain.
     const journals = await listWindow<BeeJournal>("journals", (j) => j.created_at, since);
     const conversations = await listWindow<BeeConversation>("conversations", (c) => c.start_time ?? c.created_at, since);
-    const insightPage = await runBee<{ insights?: BeeInsight[] }>(["insights", "list", "--limit", String(INSIGHT_LIMIT)]);
-    const insights = Array.isArray(insightPage.insights) ? insightPage.insights : [];
+    const insights = await listWindow<BeeInsight>("insights", (i) => i.generated_at, since);
 
     const rows: BaseRow[] = [];
     const texts = new Map<string, TextPart[]>();
@@ -211,7 +209,7 @@ export class BeeData {
       });
       texts.set(rowKey("conversation", id), parts(["short summary", c.short_summary], ["summary", c.summary]));
     }
-    for (const i of insights.filter((x) => x.generated_at >= since)) {
+    for (const i of insights.items) {
       const id = str(i.id);
       rows.push({ type: "insight", id, createdAt: iso(i.generated_at), updatedAt: iso(i.generated_at), start: null, end: null, state: null });
       texts.set(rowKey("insight", id), parts(["insight title", i.title], ["insight description", i.description]));
@@ -221,7 +219,7 @@ export class BeeData {
       days,
       rows,
       texts,
-      cutShort: { journals: journals.cutShort, conversations: conversations.cutShort, insights: insights.length >= INSIGHT_LIMIT },
+      cutShort: { journals: journals.cutShort, conversations: conversations.cutShort, insights: insights.cutShort },
     };
   }
 

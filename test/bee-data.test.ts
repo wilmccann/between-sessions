@@ -55,14 +55,15 @@ describe("Bee data: reading", () => {
     assert.equal(keys.filter((k: string) => k.startsWith("journal:")).length, 5);
     assert.equal(keys.filter((k: string) => k.startsWith("conversation:")).length, 6);
     assert.deepEqual(keys.filter((k: string) => k.startsWith("insight:")), ["insight:2101", "insight:2102"]);
-    // Two per page: journals stop on the third page, conversations on the fourth.
+    // Two per page: journals stop on the third page, conversations on the
+    // fourth, insights on the second.
     const calls = await argvLines(argvFile);
     assert.deepEqual(
       calls.map((a) => a.slice(0, 2).join(" ")),
-      ["journals list", "journals list", "journals list", "conversations list", "conversations list", "conversations list", "conversations list", "insights list"],
+      ["journals list", "journals list", "journals list", "conversations list", "conversations list", "conversations list", "conversations list", "insights list", "insights list"],
     );
     assert.deepEqual(calls[1], ["journals", "list", "--limit", "100", "--cursor", "2", "--json"]);
-    assert.deepEqual(calls.at(-1), ["insights", "list", "--limit", "200", "--json"]);
+    assert.deepEqual(calls.at(-1), ["insights", "list", "--limit", "100", "--cursor", "2", "--json"]);
     // Newest first, with times, state and an open end for one in progress.
     assert.equal(rows[0].key, "journal:jrnl-synthetic-6666");
     const live = byKey(rows)["conversation:900666"];
@@ -104,15 +105,16 @@ describe("Bee data: reading", () => {
     }
   });
 
-  it("flags insights as maybe cut short when Bee gives exactly 200", async () => {
+  it("pages insights at Bee's limit of 100, and flags them cut short after 30 pages", async () => {
     const data = beeTabData();
-    data.insights = Array.from({ length: 205 }, (_, i) => ({ ...data.insights[0], id: 5000 + i }));
+    data.insights = Array.from({ length: 65 }, (_, i) => ({ ...data.insights[0], id: 5000 + i }));
     const many = await writeBeeTabData(data);
     process.env.FAKE_BEE_DIR = many.dir;
     try {
       const body = (await getBee()).json();
       assert.equal(body.cutShort.insights, true);
-      assert.equal(body.rows.filter((r: Row) => r.type === "insight").length, 200);
+      assert.equal(body.rows.filter((r: Row) => r.type === "insight").length, 60);
+      assert.ok((await argvLines(argvFile)).every((a) => Number(a[a.indexOf("--limit") + 1]) <= 100));
     } finally {
       await rm(many.dir, { recursive: true, force: true });
     }
@@ -180,7 +182,7 @@ describe("Bee data: cache", () => {
       const count = async () => (await argvLines(argvFile)).length;
       await call(own.port, "/api/bee", { token });
       const once = await count();
-      assert.equal(once, 8);
+      assert.equal(once, 9);
       now += 6 * 3_600_000;
       await call(own.port, "/api/bee", { token });
       assert.equal(await count(), once);
@@ -207,6 +209,6 @@ describe("Bee data: cache", () => {
   it("reads Bee once for text when nothing is cached yet", async () => {
     const res = await call(port, "/api/bee/text?type=journal&id=jrnl-synthetic-6666", { token });
     assert.equal(res.status, 200);
-    assert.equal((await argvLines(argvFile)).length, 8);
+    assert.equal((await argvLines(argvFile)).length, 9);
   });
 });

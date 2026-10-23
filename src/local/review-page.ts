@@ -457,8 +457,7 @@ function renderBee() {
   const rows = beeRowsShown();
   const notes = [];
   if (searching && found.cutShort) notes.push(el("p", { class: "pending" }, "May be cut short: Bee returned its limit of 50 results."));
-  if (!searching && bee.cutShort.insights) notes.push(el("p", { class: "pending" }, "Insights may be cut short: Bee returned its limit of 200."));
-  if (!searching && (bee.cutShort.journals || bee.cutShort.conversations)) notes.push(el("p", { class: "pending" }, "May be cut short: stopped after 30 pages."));
+  if (!searching && (bee.cutShort.journals || bee.cutShort.conversations || bee.cutShort.insights)) notes.push(el("p", { class: "pending" }, "May be cut short: stopped after 30 pages."));
   // Bee's semantic search gives start and end only, so no Created or Updated.
   const dated = !(searching && found.ran === "neural");
   const headers = ["Type", "Id"].concat(dated ? ["Created", "Updated"] : [], ["Start and end", "State", "Marty", "Text", "Look up"]);

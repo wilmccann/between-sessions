@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stands in for the Bee CLI in tests: `fake-bee.mjs <resource> list ... --json`
-// answers from the synthetic fixtures, two items per page (insights: up to
-// --limit). `search --query <q> [--neural] ... --json` answers from
+// answers from the synthetic fixtures, two items per page, and refuses a
+// --limit over 100 as the real CLI does ("Bad Request"). `search --query <q> [--neural] ... --json` answers from
 // search.json or neural.json.
 // FAKE_BEE_DIR: read the fixtures from this directory instead.
 // FAKE_BEE_ARGV: append each call's arguments, as a JSON line, to this file.
@@ -47,7 +47,11 @@ if (command !== "list" || !rest.includes("--json")) {
 }
 const all = JSON.parse(read(`${resource}.json`))[resource];
 const offset = Number(option("--cursor") ?? 0);
-const size = resource === "insights" && option("--limit") ? Number(option("--limit")) : 2;
+if (Number(option("--limit") ?? 0) > 100) {
+  console.error("Bad Request");
+  process.exit(1);
+}
+const size = 2;
 const page = all.slice(offset, offset + size);
 const next = offset + size < all.length ? String(offset + size) : null;
 console.log(JSON.stringify({ [resource]: page, next_cursor: next }));
