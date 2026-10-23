@@ -22,7 +22,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [x] [When is my next session](#small-addition-when-is-my-next-session).
 
 **Cut for the submission:**
-- ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next".
+- ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next". By Thu Oct 22 evening, Nova Lite and Nova 2 Lite both answered a test call, so the quotas are no longer 0. Voice stays cut for the submission.
 
 **Testing tools (MVP, local only):**
 - [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, "Marty, test:" dry runs, `--collect`, `--shape`.
@@ -321,7 +321,7 @@ Locations, utterances and calendar data are never used as evidence.
 
 **Data exposed:** same as the typed tools; answers are spoken aloud, so the brief's short form must be safe to hear in public (no verbatim content).
 
-**Depends on:** Nova 2 Lite answering in us-east-1. **Status: cut for the submission (Thu Oct 22).** The quota hadn't arrived, so the same conversation is demoed typed in Claude Code, and voice moves to "next". `bee-agent` already has Nova 2 Lite invoke access, so the gates can resume as soon as the quota lands.
+**Depends on:** Nova 2 Lite answering in us-east-1. **Status: cut for the submission (Thu Oct 22).** The quota hadn't arrived, so the same conversation is demoed typed in Claude Code, and voice moves to "next". `bee-agent` already has Nova 2 Lite invoke access, so the gates can resume as soon as the quota lands. The quota landed by Thu Oct 22 evening (Nova 2 Lite answered a test call), so the gates can resume after the submission.
 
 **Works when:**
 - Locally (`npm run chat`), the scripted asks call the right tool, with typical turns of 4 s or less and none over the bridge's 6.5 s budget.
@@ -388,7 +388,7 @@ The series config already has the weekday and start time, so the next session's 
 | --- | --- | --- |
 | 1 | ~~Do Bee journals work on Android?~~ | **Yes** (Oct 21 test; see capability 3) |
 | 2 | Does a spoken reminder become a Bee todo or suggestion, and how fast? | Partly answered: it became a suggestion, not a todo. Timing still unmeasured |
-| 3 | When does Nova 2 Lite answer in us-east-1? | Still 0 tokens per day on Thu Oct 22 morning (AWS Support case open). Alexa is cut for the submission; recheck after |
+| 3 | When does Nova 2 Lite answer in us-east-1? | Answered: still 0 tokens per day on Thu Oct 22 morning, but Nova Lite and Nova 2 Lite both answered a test call on Thu Oct 22 evening. The new quota values aren't checked (`bee-agent` can't read Service Quotas). Alexa stays cut for the submission |
 | 4 | Which keywords should a series' topics and capture use? | Start with `captureKeywords` in the series config; tune on real data |
 | 5 | Is the short spoken brief safe to hear aloud in public? | Review the short form before the Alexa demo |
 | 6 | Is a journal's `created_at` the moment you spoke, or when Bee finished processing it? Markers depend on it | Test A (compare with the phone-clock times) |
