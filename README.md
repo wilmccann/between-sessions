@@ -6,6 +6,14 @@ A companion for recurring 1:1 sessions (therapy, coaching, mentoring, interview 
 
 Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" Between sessions it says what has happened since: how many days and conversations, which topics from last time came up again, Bee's insights and new todos. After a session it saves what Bee captured before the summaries get rewritten, and keeps your takeaways and debrief. The Bee's own button is an input: hold it and talk to the product by name, Marty ("Marty, start session", "Marty, end session", "Marty, debrief: ...", "Marty, agenda: ..." or "Marty, takeaway: ..."), and the next brief confirms what was filed.
 
+## Why
+
+Bee hears your whole day. Between Sessions is for when you don't want a digital twin, just a laser focus on a few recurring sessions: a weekly tutor, a coach, a therapist, or any custom series.
+
+- **Works on Bee's free tier.** No calendar integration needed: a schedule you describe once, plus the Bee button, finds the sessions.
+- **Your data, your account.** It copies only those sessions into DynamoDB in your own AWS account, before the free tier's roughly two-week window rolls past them.
+- **Talk to it through the Bee.** Hold the button and say "Marty, …". The name keeps commands apart from ordinary notes.
+
 > Status: built for the Build, Ship, Shape: Amazon Developer Hackathon (Bee track). The collector, the session store and the remote MCP server run on AWS; the Bedrock notes are built and ship switched off. If the demo video doesn't play, [docs/DEMO_FALLBACK.md](docs/DEMO_FALLBACK.md) walks through one evening on a real Bee with screenshots.
 
 ## Architecture
