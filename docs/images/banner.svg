@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Between Sessions</title>
+  <desc id="desc">A sample prep brief: 6 days and 41 conversations since the last session, three topics that came up again, two agenda items (one added with the Bee button) and the last takeaway. All data is made up.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFF8EC"/>
+      <stop offset="1" stop-color="#FCE3B6"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#7A4A00" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <g font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="80" y="230" font-size="70" font-weight="800" fill="#1A1A1F" letter-spacing="-1.5">Between</text>
+    <text x="80" y="310" font-size="70" font-weight="800" fill="#1A1A1F" letter-spacing="-1.5">Sessions</text>
+    <rect x="82" y="336" width="72" height="6" rx="3" fill="#E8900C"/>
+    <text x="82" y="388" font-size="25" fill="#5B5547">Walk into your next 1:1 knowing</text>
+    <text x="82" y="420" font-size="25" fill="#5B5547">what changed since the last one.</text>
+    <text x="82" y="482" font-size="18" fill="#8A7F68">Bee wearable data · MCP server on AWS · MIT</text>
+
+    <!-- brief card -->
+    <g filter="url(#shadow)">
+      <rect x="610" y="80" width="590" height="480" rx="24" fill="#FFFFFF"/>
+    </g>
+    <text x="650" y="136" font-size="17" font-weight="700" fill="#B86E00" letter-spacing="1.5">PREP BRIEF · WEEKLY COACHING</text>
+    <text x="1160" y="136" font-size="17" fill="#8A8476" text-anchor="end">Next: Thu 4:00 PM</text>
+    <line x1="650" y1="158" x2="1160" y2="158" stroke="#EFE8DA" stroke-width="2"/>
+
+    <text x="650" y="200" font-size="16" font-weight="700" fill="#8A8476" letter-spacing="1">SINCE LAST SESSION</text>
+    <text x="650" y="236" font-size="30" font-weight="700" fill="#1A1A1F">6 days · 41 conversations</text>
+
+    <text x="650" y="292" font-size="16" font-weight="700" fill="#8A8476" letter-spacing="1">CAME UP AGAIN</text>
+    <g font-size="20" font-weight="600" fill="#7A4A00">
+      <rect x="650" y="308" width="140" height="40" rx="20" fill="#FDEFD3"/>
+      <text x="720" y="335" text-anchor="middle">delegation</text>
+      <rect x="802" y="308" width="152" height="40" rx="20" fill="#FDEFD3"/>
+      <text x="878" y="335" text-anchor="middle">the work trip</text>
+      <rect x="966" y="308" width="92" height="40" rx="20" fill="#FDEFD3"/>
+      <text x="1012" y="335" text-anchor="middle">sleep</text>
+    </g>
+
+    <text x="650" y="398" font-size="16" font-weight="700" fill="#8A8476" letter-spacing="1">ON YOUR AGENDA</text>
+    <circle cx="660" cy="428" r="6" fill="#E8900C"/>
+    <text x="678" y="435" font-size="22" fill="#1A1A1F">Ask about the reorg timeline</text>
+    <circle cx="660" cy="466" r="6" fill="#E8900C"/>
+    <text x="678" y="473" font-size="22" fill="#1A1A1F">The work trip</text>
+    <rect x="822" y="452" width="104" height="28" rx="14" fill="#E8900C"/>
+    <text x="874" y="472" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">from Bee</text>
+
+    <line x1="650" y1="502" x2="1160" y2="502" stroke="#EFE8DA" stroke-width="2"/>
+    <text x="650" y="536" font-size="19" fill="#5B5547">Last takeaway: "delegate earlier"</text>
+  </g>
+</svg>

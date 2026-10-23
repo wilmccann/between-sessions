@@ -1,5 +1,7 @@
 # Between Sessions
 
+![Between Sessions: a sample prep brief showing days and conversations since the last session, topics that came up again, the agenda and the last takeaway (made-up data)](docs/images/banner.svg)
+
 A companion for recurring 1:1 sessions (therapy, coaching, mentoring, interview loops) built on data from a [Bee](https://docs.bee.computer/docs) wearable.
 
 Before a session it answers "what did we cover last time, what did I notice afterwards, and what do I want to bring up?" Between sessions it says what has happened since: how many days and conversations, which topics from last time came up again, Bee's insights and new todos. After a session it saves what Bee captured before the summaries get rewritten, and keeps your takeaways and debrief. The Bee's own button is an input: hold it and talk to the product by name, Marty ("Marty, start session", "Marty, end session", "Marty, debrief: ...", "Marty, agenda: ..." or "Marty, takeaway: ..."), and the next brief confirms what was filed.
