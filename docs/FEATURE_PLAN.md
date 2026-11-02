@@ -47,7 +47,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 In priority order. Pick one, then tick it here and log the decision.
 
 - [ ] **Tune on real data.** Use it for a few weeks of real sessions, then settle the open questions about capture keywords (4), the longest open-ended session (8) and which guesses file automatically (9).
-- [ ] **Voice through Alexa** ([capability 5](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)), cut for the submission. Nova Lite and Nova 2 Lite answered by Oct 22 evening; check the actual quota values first.
+- [ ] **Voice through Alexa**, cut for the submission. Proposal: [ALEXA_PLAN.md](ALEXA_PLAN.md), a classic custom skill in the Android Alexa app first (no model, no OAuth), then optionally an Alexa+ MCP add-on. It replaces the bridge in [capability 5](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen) if accepted.
 - [ ] **Push delivery:** the brief the evening before a session, a takeaway nudge after one. Needs a privacy decision first, because content would leave AWS.
 - [ ] **claude.ai and Claude mobile connector.** Needs Cognito OAuth in front of the MCP server.
 - [ ] **Hosted review page**, so review works away from the Mac. Also needs a Cognito user pool. See [capability 4](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp).
@@ -319,6 +319,8 @@ Locations, utterances and calendar data are never used as evidence.
 - On real data, the brief shows the review line with counts only, and one retag in Claude Code moves a session (checked by counts and ids).
 
 ### 5. Voice through Alexa, powered by Bedrock: asking without a screen
+
+> Nov 2: a new design is proposed in [ALEXA_PLAN.md](ALEXA_PLAN.md): a classic skill with no model first, an Alexa+ MCP add-on later. If it's accepted, the bridge, the Nova agent and the gates below become history; the use cases still hold.
 
 **What it adds:** the product works when you're walking to or from a session, where typing is the wrong interface.
 
