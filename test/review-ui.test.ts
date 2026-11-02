@@ -5,13 +5,13 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { newToken, reviewServer, shellQuote } from "../src/local/review-ui.js";
 import { fileStore } from "../src/store/file-store.js";
 import type { TableStore } from "../src/store/table-store.js";
 import type { SessionTag } from "../src/store/types.js";
 import { coaching, other, therapy } from "./fixtures/meeting-types.js";
-import { ACME_GUESS, call, COACHING, OTHER, seed, startServer, THERAPY } from "./fixtures/review-seed.js";
+import { ACME_GUESS, call, COACHING, OTHER, SEEDED_AT, seed, startServer, THERAPY } from "./fixtures/review-seed.js";
 
 // Every key in a JSON value, at any depth.
 const keysOf = (v: unknown): string[] =>
@@ -22,11 +22,16 @@ let server: Server;
 let port: number;
 const token = newToken();
 beforeEach(async () => {
+  // The review line's deadline reads the clock.
+  mock.timers.enable({ apis: ["Date"], now: Date.parse(SEEDED_AT) });
   store = fileStore(join(await mkdtemp(join(tmpdir(), "bs-review-ui-")), "store.json"));
   await seed(store);
   ({ server, port } = await startServer(store, token));
 });
-afterEach(() => server.close());
+afterEach(() => {
+  server.close();
+  mock.timers.reset();
+});
 
 describe("review page: access", () => {
   it("makes long random tokens", () => {

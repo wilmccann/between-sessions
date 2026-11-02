@@ -100,7 +100,9 @@ describe("how a guess is made", () => {
 });
 
 describe("review_sessions and retag_session", () => {
-  it("lists the queue without summaries, and the brief shows the review line", async () => {
+  it("lists the queue without summaries, and the brief shows the review line", async (ctx) => {
+    // The review line's deadline reads the clock; the guess drops 14 days on.
+    ctx.mock.timers.enable({ apis: ["Date"], now: at(t("18:00", "2026-10-15")) });
     await run(t("18:00", "2026-10-15"), [offWeek]);
     const res = JSON.parse(await call("review_sessions")) as { line: string; sessions: { id: string; guess: string; beeId: string; durationMinutes: number }[] };
     assert.equal(res.line, "1 session to review.");
@@ -110,6 +112,8 @@ describe("review_sessions and retag_session", () => {
     assert.ok(!JSON.stringify(res).includes("garden"));
     const brief = await prepBrief(store, coaching, at(t("18:00", "2026-10-15")));
     assert.equal(brief.review, "1 session to review.");
+    const late = await prepBrief(store, coaching, at(t("18:00", "2026-10-26")));
+    assert.equal(late.review, "1 session to review; the oldest expires in 3 days.");
   });
 
   it("confirming a guess stores the session on the next run", async () => {
