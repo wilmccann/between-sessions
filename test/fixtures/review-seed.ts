@@ -19,6 +19,9 @@ export const COACHING = "2026-10-15T20:02:00.000Z";
 export const THERAPY = "2026-10-20T21:00:00.000Z";
 export const OTHER = "2026-10-21T18:00:00.000Z";
 export const ACME_GUESS = "2026-10-19T15:00:00.000Z";
+// The clock for tests on this seed: just after its last entry, so the review
+// queue's deadlines (Nov 2 and 4) are more than 5 days off.
+export const SEEDED_AT = "2026-10-22T12:00:00.000Z";
 
 export async function seed(store: TableStore) {
   for (const s of [therapy, coaching, acme, other]) await store.putSeries(s);
