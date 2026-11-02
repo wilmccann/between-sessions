@@ -192,7 +192,7 @@ describe("the watcher against a fake bee stream", () => {
     assert.deepEqual(ready, ["jrnl-synthetic-0001"]);
   });
 
-  it("runs as yarn watch, from the file store, and reconnects when the stream ends", async () => {
+  it("runs as yarn local:watch, from the file store, and reconnects when the stream ends", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bs-watch-"));
     const child = spawn(process.execPath, ["--import", "tsx", "scripts/watch.ts", "--store", "file", "--shape"], {
       env: { ...process.env, BEE_BIN: fakeBee, STORE_FILE: join(dir, "store.json") },

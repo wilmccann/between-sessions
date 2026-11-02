@@ -4,7 +4,7 @@
 // October 2026. Pair it with the fake Bee CLI for the Bee data tab.
 //
 //   yarn demo:seed                       # writes snapshots/demo-store.json
-//   STORE_FILE=snapshots/demo-store.json yarn review-ui --store file
+//   yarn demo:review                     # the review page on it, with the fake Bee CLI
 import { rm } from "node:fs/promises";
 import { fileStore } from "../src/store/file-store.js";
 import { seedBeeTab } from "../test/fixtures/review-seed.js";

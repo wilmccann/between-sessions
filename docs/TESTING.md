@@ -42,8 +42,7 @@ Run it again at any time to start fresh.
 ### The review page and Schedule page
 
 ```bash
-STORE_FILE=snapshots/demo-store.json BEE_BIN=test/fixtures/fake-bee.mjs BEE_DAYS=60 \
-  corepack yarn review-ui --store file
+corepack yarn demo:review
 ```
 
 Open the `http://127.0.0.1:8789/?token=...` link it prints. Then try:
@@ -58,7 +57,7 @@ Open the `http://127.0.0.1:8789/?token=...` link it prints. Then try:
   - add a dated session;
   - see the calendar of slots and the session filed in each.
 
-What the variables do:
+`demo:review` sets three variables for you:
 - `STORE_FILE` points at the demo store.
 - `BEE_BIN` swaps the real Bee CLI for the fake one.
 - `BEE_DAYS=60` widens the Bee window from the default 14 days, because the fake data is dated October 2026. The maximum is 60, which covers the data until mid-December 2026.
@@ -77,14 +76,14 @@ To run the pieces yourself instead, start the local MCP server on the same store
 
 ```bash
 export MCP_TOKEN=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
-STORE_FILE=snapshots/demo-store.json corepack yarn mcp
+corepack yarn demo:mcp
 ```
 
 In a third terminal with the same `MCP_TOKEN`, list the tools and call a few:
 
 ```bash
-corepack yarn check    # tools, prompts, and the shape of three answers
-corepack yarn show     # the same calls, full content (all synthetic)
+corepack yarn local:check    # tools, prompts, and the shape of three answers
+corepack yarn local:show     # the same calls, full content (all synthetic)
 ```
 
 To ask it from Claude Code instead, with the same `MCP_TOKEN` in that shell:
@@ -100,8 +99,7 @@ Then try "prep me for coaching" or "what's waiting for review?". The server's pr
 The watcher follows `bee stream` and shows what Marty would do with each Bee button voice note. With the fake CLI, it replays a short synthetic stream every 5 seconds:
 
 ```bash
-STORE_FILE=snapshots/demo-store.json BEE_BIN=test/fixtures/fake-bee.mjs \
-  corepack yarn watch --store file
+corepack yarn demo:watch
 ```
 
 Look for `"Marty, test: start coaching session." -> Test: would be START, series coaching`. Stop it with Ctrl-C.
@@ -110,8 +108,8 @@ Look for `"Marty, test: start coaching session." -> Test: would be START, series
 
 Needs a Bee device, and the [Bee CLI](https://www.npmjs.com/package/@beeai/cli) logged in with `bee login`. Follow [Run locally](../README.md#run-locally) in the README:
 - describe your recurring sessions in `series.local.json`;
-- `corepack yarn collect` reads recent Bee data into a local store;
-- then use the same review page, MCP server and watcher as above, without the `BEE_BIN` and `STORE_FILE` overrides.
+- `corepack yarn local:collect` reads recent Bee data into a local store;
+- then use `local:review`, `local:mcp` and `local:watch`, the `local:` versions of the demo commands above.
 
 Your data stays in `snapshots/` (git-ignored, readable only by you).
 
@@ -119,7 +117,7 @@ Your data stays in `snapshots/` (git-ignored, readable only by you).
 
 Follow [Deploy to AWS](../README.md#deploy-to-aws) in the README. In short:
 1. `scripts/setup-bee-secret.sh` puts a dedicated Bee CLI login in Secrets Manager.
-2. `corepack yarn cdk deploy BetweenSessions` deploys the collector (every 15 minutes), the DynamoDB table and the MCP server behind API Gateway.
-3. `corepack yarn seed` writes your series.
+2. `corepack yarn aws:deploy` deploys the collector (every 15 minutes), the DynamoDB table and the MCP server behind API Gateway.
+3. `corepack yarn aws:seed --file series.local.json` writes your series.
 
-Then connect Claude Code to the printed `McpUrl` (or open a session on it with `corepack yarn demo:claude --real`, see the README's [Connect Claude Code](../README.md#connect-claude-code)), and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails.
+Then connect Claude Code to the printed `McpUrl` (or open a session on it with `corepack yarn aws:claude`, see the README's [Connect Claude Code](../README.md#connect-claude-code)), and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails.

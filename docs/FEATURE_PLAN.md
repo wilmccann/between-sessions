@@ -12,7 +12,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - [x] Bedrock session notes: code and tests done, deployed switched off.
 - [x] Cost guardrails stack: budgets, anomaly alerts and a Lambda kill switch.
 - [x] Least-privilege `bee-agent` role (`infra/bee-agent-access.yaml`) and `asm-exec` for secrets.
-- [x] Scripts: `brief`, `check:remote`, `seed`, `try-notes`; 39 tests pass. MIT LICENSE.
+- [x] Scripts: `aws:brief`, `aws:check`, `aws:seed`, `demo:notes`; 39 tests pass. MIT LICENSE.
 
 **Left to build, MVP (in priority order):**
 - [x] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
@@ -25,8 +25,8 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 - ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next". By Thu Oct 22 evening, Nova Lite and Nova 2 Lite both answered a test call, so the quotas are no longer 0. Voice stays cut for the submission.
 
 **Testing tools (MVP, local only):**
-- [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn watch`: live view of what Bee heard and what the product will do with it, "Marty, test:" dry runs, `--collect`, `--shape`.
-- [x] [Local review page](#testing-tools-mvp-local-only) `yarn review-ui`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
+- [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn aws:watch`: live view of what Bee heard and what the product will do with it, "Marty, test:" dry runs, `--collect`, `--shape`.
+- [x] [Local review page](#testing-tools-mvp-local-only) `yarn aws:review`: read-only view of series, sessions, tags, markers, voice notes, review queue and agenda; then edits (retag, not a session, confirm, remove agenda item).
 
 **Operations:**
 - [x] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack (deployed Thu Oct 22).
@@ -41,7 +41,7 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 
 - **AWS:** use only `AWS_PROFILE=bee-agent`, region `us-east-1`. Don't use `aws-admin` or `agent-toolkit` directly, never run `aws login`, and never use the `fts-website` profile. Changes go through CDK. No em dashes in resource names or descriptions.
 - **Secrets:** never call `secretsmanager get-secret-value` or `batch-get-secret-value`; resolve secrets at runtime with `{{resolve:secretsmanager:...}}` and `asm-exec`. Never print, log or commit a token.
-- **Real Bee data:** check real-data steps by counts, ids, dates and lengths only, never content. Scripts that print personal content (`yarn brief`) run in the user's own terminal; agents use `--shape`. Tests and examples are synthetic.
+- **Real Bee data:** check real-data steps by counts, ids, dates and lengths only, never content. Scripts that print personal content (`yarn aws:brief`) run in the user's own terminal; agents use `--shape`. Tests and examples are synthetic.
 - **Personal details** (the real schedule, series names, anything from `series.local.json`) never go into committed files. This repo is public.
 - **Git:** never push without the user's say-so.
 - **Shell:** Node 22 with `corepack yarn`. Local `bee` calls take about 20 s each (Keychain), so batch them.
@@ -166,7 +166,7 @@ Today, a request that names no series goes to whichever series the store lists f
 
 **Works when:**
 - With synthetic fixtures, the digest has the right counts and topics.
-- On real data, `check:remote --shape` shows the digest's counts (no content printed).
+- On real data, `aws:check --shape` shows the digest's counts (no content printed).
 - "What's happened since my last session?" returns it in one tool call.
 
 ### 3. The Bee button: capture and session control without opening anything (MVP)
@@ -189,7 +189,7 @@ Today, a request that names no series goes to whichever series the store lists f
 | "Marty, takeaway: delegate earlier" | Saves a takeaway on the last session |
 | "Marty, test: ..." | A dry run: the watcher shows what the command would do; nothing is filed |
 
-- The button gives no feedback of its own. Bee has the note ready in about 5 seconds (measured Oct 22); the collector files it within 15 minutes, or within seconds while `yarn watch --collect` runs. So every touchpoint confirms what was filed: the brief, the digest and the Alexa greeting open with, for example, "Got it: session ended 11:02, debrief saved, 1 agenda item added."
+- The button gives no feedback of its own. Bee has the note ready in about 5 seconds (measured Oct 22); the collector files it within 15 minutes, or within seconds while `yarn aws:watch --collect` runs. So every touchpoint confirms what was filed: the brief, the digest and the Alexa greeting open with, for example, "Got it: session ended 11:02, debrief saved, 1 agenda item added."
 - A note that starts with "Marty" but can't be filed or understood is reported, not dropped: "1 voice note I couldn't file" (the reason, such as "didn't understand", is kept; the note's words are not).
 - "Drop the work trip from my agenda" removes an item; any filed item can be undone.
 
@@ -235,7 +235,7 @@ Today, a request that names no series goes to whichever series the store lists f
 3. *(hold)* "Marty, debrief: the test went fine."
 4. *(hold)* "Marty, agenda for coaching: bring up the work trip."
 5. For a real review item: *(hold)* "Marty, start session." Talk for 2 minutes. *(hold)* "Marty, end session." With two series and no slot at that hour, this pair is filed under Other, pending review.
-6. Within about 15 minutes (seconds with `yarn watch --collect`) the next brief opens with what was filed, and `review_sessions` lists the unnamed session. Record the retag for the video: "Marty, that was coaching."
+6. Within about 15 minutes (seconds with `yarn aws:watch --collect`) the next brief opens with what was filed, and `review_sessions` lists the unnamed session. Record the retag for the video: "Marty, that was coaching."
 
 Say "session", not "call" ("Marty, start a coaching call" names a separate "coaching call" series). Always name the series in the first pair: with only one series, an unnamed start goes to that series. Before step 6, check that the review page shows the Coaching series: "that was X" for a series that doesn't exist is reported as unfiled.
 
@@ -341,7 +341,7 @@ Prerequisites: Node 22.18 or later; the bridge cloned into `vendor/` (git-ignore
 
 **Why they're in the MVP:** the Bee button has no feedback of its own, and the product only sees a voice note after Bee processes it and the collector runs (up to 15 minutes). That's too slow to test command phrasing and too opaque to trust. Both tools run on your Mac only; the product path (collector, table, MCP tools) is unchanged.
 
-**Voice-note watcher (`yarn watch`), built first:**
+**Voice-note watcher (`yarn aws:watch`), built first:**
 - Runs `bee stream --json` filtered to journal events (`journal-created`, `journal-updated`, `journal-text`) and conversation events (`new-conversation`, `update-conversation`, `delete-conversation`). Utterance, location and todo events are never subscribed to.
 - For each voice note: the time, what Bee heard, and what the product will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser and your stored series as the deployed collector. If Bee's `cleanedUpText` parses differently from the raw text, it says so.
 - For conversations: only the id, the state change and the time, so you can see whether your talk lands between the markers.
@@ -350,7 +350,7 @@ Prerequisites: Node 22.18 or later; the bridge cloned into `vendor/` (git-ignore
 - **`--shape`:** hides all text (kinds, times and parse results only), so an agent can watch too.
 - Prints to your terminal only; never writes events to disk; no webhook. Bee's stream is at-most-once, so it is a testing probe, never the product path.
 
-**Local review page (`yarn review-ui`), read-only first, then edits:**
+**Local review page (`yarn aws:review`), read-only first, then edits:**
 - Served on `127.0.0.1` only, like the local MCP server; reads and writes the table with your `bee-agent` credentials through the existing store (edits need `dynamodb:DeleteItem`, added to `infra/bee-agent-access.yaml` on Oct 22). It checks the Host header and needs a token made at each launch.
 - One page: series; sessions with date, time, length, tag (source, confidence, status, reason), the last 4 characters of each Bee id, and parts; markers; a voice-note log (what each note did); the review queue; agenda items with their source. Summaries stay hidden unless you open a row.
 - Edits (after test D): retag, not a session, confirm, remove agenda item, through the same code as `retag_session` and `remove_agenda_item`, with the same read-back.

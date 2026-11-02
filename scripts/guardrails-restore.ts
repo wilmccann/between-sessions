@@ -2,7 +2,7 @@
 // every function under the given prefixes (default: between-sessions-).
 // Functions with a deliberate non-zero reservation are left alone.
 // Needs credentials allowed to manage Lambda concurrency, for example:
-//   AWS_PROFILE=aws-admin AWS_REGION=us-east-1 corepack yarn guardrails:restore [--dry-run] [prefix ...]
+//   AWS_PROFILE=aws-admin AWS_REGION=us-east-1 corepack yarn aws:guardrails-restore [--dry-run] [prefix ...]
 import {
   DeleteFunctionConcurrencyCommand,
   GetFunctionConcurrencyCommand,

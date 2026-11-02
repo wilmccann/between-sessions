@@ -2,7 +2,7 @@
 // BetweenSessions stack outputs. The token must arrive in MCP_TOKEN at
 // runtime, resolved from Secrets Manager without being printed:
 //
-//   MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' asm-exec -- corepack yarn check:remote
+//   MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' asm-exec -- corepack yarn aws:check
 //
 // Without a token it only checks that the endpoint is up and refuses
 // unauthenticated requests.

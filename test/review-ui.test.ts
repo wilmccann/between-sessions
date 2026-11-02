@@ -245,7 +245,7 @@ describe("review page: edits", () => {
   });
 });
 
-describe("yarn review-ui", () => {
+describe("yarn local:review", () => {
   it("starts on 127.0.0.1 and prints the URL with its token", async () => {
     const dir = await mkdtemp(join(tmpdir(), "bs-review-ui-main-"));
     const fresh = fileStore(join(dir, "store.json"));

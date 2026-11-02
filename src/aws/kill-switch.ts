@@ -59,7 +59,7 @@ export function makeHandler(deps: KillDeps, prefixes: string[], self?: string) {
         `Set to 0 concurrency: ${throttled.join(", ") || "none"}`,
         ...(failed.length ? [`Failed: ${failed.join(", ")}`] : []),
         "",
-        "Undo, once the cause is fixed: corepack yarn guardrails:restore",
+        "Undo, once the cause is fixed: corepack yarn aws:guardrails-restore",
       ].join("\n"),
     );
     if (failed.length) throw new Error(`Could not throttle: ${failed.join(", ")}`);

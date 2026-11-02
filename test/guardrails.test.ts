@@ -55,7 +55,7 @@ describe("kill switch handler", () => {
     assert.deepEqual(throttled, ["between-sessions-collector", "between-sessions-mcp"]);
     assert.equal(notes.length, 1);
     assert.match(notes[0].message, /account-daily/);
-    assert.match(notes[0].message, /guardrails:restore/);
+    assert.match(notes[0].message, /aws:guardrails-restore/);
   });
 
   it("keeps going past a failure, reports it, then fails the invocation", async () => {

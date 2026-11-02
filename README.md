@@ -115,11 +115,11 @@ corepack yarn install
 scripts/setup-bee-secret.sh
 
 # 2. Deploy the stack (Bedrock notes off).
-corepack yarn cdk deploy BetweenSessions
+corepack yarn aws:deploy
 
 # 3. Tell the collector which sessions to look for.
 cp series.example.json series.local.json      # edit: your weekday, times and timezone
-corepack yarn seed --store dynamo --file series.local.json
+corepack yarn aws:seed --file series.local.json
 
 # 4. Run the collector once instead of waiting for the schedule.
 aws lambda invoke --function-name between-sessions-collector out.json && cat out.json
@@ -146,21 +146,21 @@ Or open a one-off Claude Code session on it, without adding it to your config. T
 
 ```bash
 MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' \
-  asm-exec -- corepack yarn demo:claude --real
+  asm-exec -- corepack yarn aws:claude
 ```
 
-That session shows your real sessions, so run it in your own terminal. Button notes appear after the next collector run; run `corepack yarn watch --collect` alongside it to collect as soon as Bee has a note.
+That session shows your real sessions, so run it in your own terminal. Button notes appear after the next collector run; run `corepack yarn aws:watch --collect` alongside it to collect as soon as Bee has a note.
 
-To smoke-test it without the token showing up, `corepack yarn check:remote` reads the URL from the stack and the token from `MCP_TOKEN`, and prints only shapes and counts.
+To smoke-test it without the token showing up, `corepack yarn aws:check` reads the URL from the stack and the token from `MCP_TOKEN`, and prints only shapes and counts.
 
 ### Turn on Bedrock notes
 
 ```bash
-corepack yarn cdk deploy BetweenSessions -c notes=true                       # Claude Sonnet 5.5
-corepack yarn cdk deploy BetweenSessions -c notes=true -c bedrockModelId=us.amazon.nova-lite-v1:0
+corepack yarn aws:deploy -c notes=true                       # Claude Sonnet 5.5
+corepack yarn aws:deploy -c notes=true -c bedrockModelId=us.amazon.nova-lite-v1:0
 ```
 
-Try the prompt on synthetic data first with `corepack yarn try-notes [--model <id>]`.
+Try the prompt on synthetic data first with `corepack yarn demo:notes [--model <id>]`.
 
 ### Cost
 
@@ -187,7 +187,7 @@ AWS has no hard spending cap, so worst-case spend is bounded in two ways. Rate l
 corepack yarn cdk deploy CostGuardrails -c alertEmail=you@example.com   # confirm the SNS email
 aws lambda invoke --function-name cost-guardrails-kill-switch \
   --cli-binary-format raw-in-base64-out --payload '{"dryRun":true}' out.json && cat out.json
-corepack yarn guardrails:restore            # after the kill switch fired and the cause is fixed
+corepack yarn aws:guardrails-restore        # after the kill switch fired and the cause is fixed
 ```
 
 Budgets update at least once a day and a daily budget compares the previous day's spend, so the kill switch fires hours after the fact. The rate limits are what bound the damage in between. Pass the same `-c alertEmail` on every deploy of this stack, or the email subscription is removed.
@@ -200,49 +200,55 @@ Requires the [Bee CLI](https://www.npmjs.com/package/@beeai/cli) logged in with 
 corepack yarn install
 cp .env.example .env                       # set MCP_TOKEN to a long random value
 cp series.example.json series.local.json   # describe your own recurring session
-corepack yarn collect                      # match recent Bee data into snapshots/store.json (git-ignored, 0600)
-corepack yarn mcp                          # MCP server on http://127.0.0.1:8788/mcp
-corepack yarn check                        # call get_last_session; prints shape only
-corepack yarn show                         # same call, full content
+corepack yarn local:collect                # match recent Bee data into snapshots/store.json (git-ignored, 0600)
+corepack yarn local:mcp                    # MCP server on http://127.0.0.1:8788/mcp
+corepack yarn local:check                  # call get_last_session; prints shape only
+corepack yarn local:show                   # same call, full content
 corepack yarn test                         # tests run on synthetic data only
 ```
 
 ### Testing tools
 
-Two tools for checking the Bee button without waiting for the next collector run. Both run on your Mac only and change nothing in the deployed product. They read your stored series and sessions from DynamoDB with your AWS credentials, or from the local file store with `--store file`.
+Two tools for checking the Bee button without waiting for the next collector run. Both run on your Mac only and change nothing in the deployed product. The `aws:` versions read your stored series and sessions from DynamoDB with your AWS credentials; the `local:` and `demo:` versions read the local file store.
 
-- **Voice-note watcher** (`corepack yarn watch`): follows `bee stream` (voice notes and conversation changes only; never utterances, locations or todos) and prints one line per event: the time, what Bee heard, and what the collector will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser. It also says when Bee's cleaned-up text would parse differently. Conversations show only their id and state, never a title or summary. It prints to the terminal and writes nothing to disk. The first connection can take about 20 seconds.
-  - `--collect`: when a voice note is ready, runs the collector Lambda once and prints its counts, so filing shows end to end in about a minute.
+- **Voice-note watcher** (`corepack yarn aws:watch`, `local:watch` or `demo:watch`): follows `bee stream` (voice notes and conversation changes only; never utterances, locations or todos) and prints one line per event: the time, what Bee heard, and what the collector will do with it ("START, series coaching (new series)", "plain note", "can't file: ..."), using the same parser. It also says when Bee's cleaned-up text would parse differently. Conversations show only their id and state, never a title or summary. It prints to the terminal and writes nothing to disk. The first connection can take about 20 seconds.
+  - `--collect` (`aws:watch` only): when a voice note is ready, runs the collector Lambda once and prints its counts, so filing shows end to end in about a minute.
   - `--shape`: no text at all (kinds, times and verdicts only).
-- **Review page** (`corepack yarn review-ui`): prints a `http://127.0.0.1:8789/?token=...` link (port from `REVIEW_PORT`). The page lists series, every stored session with its tags and full Bee ids, every marker and voice note, the review queue and open agenda items (no day or count limit; only the Bee data tab is limited to Bee's history). Filter by series, kind, status and date range. Each row's "Look up" buttons copy a command for your terminal: `bee conversations get <id> --json` or `bee journals get <id> --json` for Bee's own record (while Bee still has it), and `aws dynamodb get-item` or `query` for the table item behind the row (uses your shell's AWS profile; not shown with `--store file`). Two tabs, each with its own search bar that searches only that tab: **Marty** (all of the above; **exact words** on the server, note text included once Bee data has been read, `-word` excludes) and **Bee data** (the last 14 days of Bee voice notes, conversations and insights, each with what Marty did with it: filed as a session, waiting for review, not a session, or not captured; search by **exact words**, or **Bee keyword** or **Bee semantic** through `bee search`). Summaries, note text and insight text stay hidden until you press "show" (or "Show all text" for the rows on screen). Bee is read once when you open the Bee data tab and kept in the page server's memory until you press Refresh, never stored; each `bee` call can cost a macOS Keychain prompt unless you chose "Always Allow". You can move a session to another series, confirm it, mark it as not a session, or remove an agenda item, through the same code as the MCP tools, with the same read-back. It listens on 127.0.0.1 only, checks the Host header, and needs the token made at each launch; the page is self-contained (no external scripts or fonts).
+- **Review page** (`corepack yarn aws:review`, `local:review` or `demo:review`): prints a `http://127.0.0.1:8789/?token=...` link (port from `REVIEW_PORT`). The page lists series, every stored session with its tags and full Bee ids, every marker and voice note, the review queue and open agenda items (no day or count limit; only the Bee data tab is limited to Bee's history). Filter by series, kind, status and date range. Each row's "Look up" buttons copy a command for your terminal: `bee conversations get <id> --json` or `bee journals get <id> --json` for Bee's own record (while Bee still has it), and `aws dynamodb get-item` or `query` for the table item behind the row (uses your shell's AWS profile; not shown for the local store). Two tabs, each with its own search bar that searches only that tab: **Marty** (all of the above; **exact words** on the server, note text included once Bee data has been read, `-word` excludes) and **Bee data** (the last 14 days of Bee voice notes, conversations and insights, each with what Marty did with it: filed as a session, waiting for review, not a session, or not captured; search by **exact words**, or **Bee keyword** or **Bee semantic** through `bee search`). Summaries, note text and insight text stay hidden until you press "show" (or "Show all text" for the rows on screen). Bee is read once when you open the Bee data tab and kept in the page server's memory until you press Refresh, never stored; each `bee` call can cost a macOS Keychain prompt unless you chose "Always Allow". You can move a session to another series, confirm it, mark it as not a session, or remove an agenda item, through the same code as the MCP tools, with the same read-back. It listens on 127.0.0.1 only, checks the Host header, and needs the token made at each launch; the page is self-contained (no external scripts or fonts).
 - **Schedule page** (the "Schedule" link on the review page, or `/schedule?token=...`): edits the series in the table, which the collector reads on every run, so a change applies at the next run without a deploy (dated sessions need a collector deployed from this version or later). Add or edit a series (name, time zone, weekly slot or none, spoken names, keywords, minimum length and overlap), delete one that has no sessions, agenda items or takeaways, and add or remove dated sessions: a slot on one date (several a day are fine) or "skip the weekly slot this day". The calendar lists every slot in a date range (by default from the first filed session, or two weeks back if that is later, to one week ahead), weekly or dated, past or planned, with the session filed in it. It warns, without blocking, when a slot is shorter than the series' minimum length ("This slot is 10 min but the minimum length is 30 min, so nothing will be filed. Set the minimum length to 5."), which is the trap with short test slots, and when a change touches a past slot, since the collector re-checks recent conversations. Same server, Host check and token as the review page; no summaries.
 - **Dry runs:** say "test" before or after the name ("Marty, test: start coaching session" or "Test: Marty, start coaching session") to rehearse a command. The watcher shows what it would do ("Test: would be START, series coaching (new series)"), and the collector treats it as a plain note, so nothing is filed. A command said without the name shows as `plain note (no "Marty", so not a command)`. With `--collect`, the watcher reloads your series after each collector run.
 
 ## Who runs what
 
-AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: the collector every 15 minutes, the MCP server on each request, and the cost kill switch when the daily budget is exceeded. Everything below is a command a person runs on their own machine (`corepack yarn run` lists them; each script's first lines say how to use it). Some of them talk to AWS, but AWS never runs them.
+AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: the collector every 15 minutes, the MCP server on each request, and the cost kill switch when the daily budget is exceeded. Everything else is a command a person runs on their own machine. Each command's prefix says which data it acts on, and `corepack yarn run` lists them all:
 
-| When | Command | What it does |
+- **`aws:`** your deployed stack and its DynamoDB table, the one real copy of your data.
+- **`local:`** your own Bee, read into `snapshots/store.json` on your Mac, with no AWS.
+- **`demo:`** the synthetic demo store, with no Bee and no AWS.
+
+| Command | What it does | When |
 |---|---|---|
-| **Once, to deploy** | `scripts/setup-bee-secret.sh` | A dedicated Bee CLI login for the collector, in Secrets Manager |
-| | `yarn cdk deploy BetweenSessions` | Creates or updates the stack; run again after code changes |
-| | `yarn seed --store dynamo --file series.local.json` | Your recurring sessions; run again when your schedule changes (or use the Schedule page) |
-| **Day to day** (optional; mostly you use Claude and the Bee button) | `yarn demo:claude --real` | A Claude Code session on the deployed server, without adding it to your config |
-| | `yarn brief` | Prints your prep brief in the terminal |
-| | `yarn watch --collect` | Shows each Bee button note as it arrives and files it without waiting for the next run |
-| | `yarn review-ui` | Confirm or fix the sessions it guessed, and edit the schedule |
-| **When something seems wrong** | `yarn check:remote` | Checks the deployed server is up and refuses bad tokens |
-| | `yarn guardrails:restore` | Undoes the kill switch once the cause is fixed (needs credentials that can change Lambda concurrency) |
-| **Without AWS**, on your own Bee | `yarn collect` | Does the collector's job once, into `snapshots/store.json` |
-| | `yarn mcp`, then `yarn check` or `yarn show` | The MCP server on `127.0.0.1:8788`, and a check of it |
-| | `yarn review-ui --store file`, `yarn watch --store file` | The same tools on the local store |
-| **Trying it**, no Bee or AWS | `yarn demo:seed`, `yarn demo:claude` | The synthetic demo store, and a Claude Code session on it ([docs/TESTING.md](docs/TESTING.md)) |
-| | `yarn try-notes` | The Bedrock notes prompt on a synthetic fixture |
-| **Developing** | `yarn test`, `yarn typecheck` | Tests (synthetic data only) and the type check |
+| `scripts/setup-bee-secret.sh` | A dedicated Bee CLI login for the collector, in Secrets Manager | Once, before the first deploy |
+| `yarn aws:deploy` | Deploys or updates the `BetweenSessions` stack | Once, then after code changes |
+| `yarn aws:seed --file series.local.json` | Writes your recurring sessions to DynamoDB | Once, then when your schedule changes (or use the Schedule page) |
+| `yarn aws:claude` | A Claude Code session on the deployed server, without adding it to your config | Any time (optional) |
+| `yarn aws:brief` | Prints your prep brief in the terminal | Before a session (optional) |
+| `yarn aws:watch --collect` | Shows each Bee button note as it arrives, and files it without waiting for the next run | When trying the Bee button |
+| `yarn aws:review` | The review page (confirm or fix guessed sessions) and the Schedule page | When something needs review |
+| `yarn aws:check` | Checks the deployed server is up and refuses bad tokens | After a deploy, or when something seems wrong |
+| `yarn aws:guardrails-restore` | Undoes the kill switch once the cause is fixed (needs credentials that can change Lambda concurrency) | After the kill switch fired |
+| `yarn local:collect` | Does the collector's job once, into `snapshots/store.json`, with your series from `series.local.json` | Whenever you want fresh local data |
+| `yarn local:mcp`, then `yarn local:check` or `yarn local:show` | The MCP server on `127.0.0.1:8788`, and a check of it | Local mode |
+| `yarn local:review`, `yarn local:watch` | The review page and the watcher, on the local store | Local mode |
+| `yarn demo:seed` | Writes (or resets) the synthetic demo store | First, and to start fresh |
+| `yarn demo:claude` | A Claude Code session on the demo store | Trying it ([docs/TESTING.md](docs/TESTING.md)) |
+| `yarn demo:mcp`, `yarn demo:review`, `yarn demo:watch` | The same tools on the demo store, with a fake Bee CLI | Trying it |
+| `yarn demo:notes` | The Bedrock notes prompt on a synthetic fixture | Before turning notes on |
+| `yarn test`, `yarn typecheck` | Tests (synthetic data only) and the type check | Developing |
 
-`yarn` here is short for `corepack yarn`. `brief`, `review-ui`, `watch` and `demo:claude --real` show your personal content, so run them in your own terminal.
+`yarn` here is short for `corepack yarn`. The `aws:` and `local:` commands that print content show your personal data, so run them in your own terminal. `aws:claude` and `aws:brief` need the MCP token in `MCP_TOKEN`, and `aws:check` uses it when set (see [Connect Claude Code](#connect-claude-code)).
 
-**AWS and local at the same time.** It works with one Bee: both only read from Bee, and each has its own Bee CLI login (the collector's lives in Secrets Manager and is refreshed there), so neither logs the other out. But they keep separate stores, DynamoDB and `snapshots/store.json`. Bee button notes get filed in both, while agenda items, takeaways and review decisions you make in one never reach the other, and each needs its own `seed`. Treat DynamoDB as the one real copy, and keep the local store for development or a read-only look. Note that `watch --collect` always runs the deployed collector Lambda, even with `--store file`.
+**AWS and local at the same time.** It works with one Bee: both only read from Bee, and each has its own Bee CLI login (the collector's lives in Secrets Manager and is refreshed there), so neither logs the other out. But they keep separate stores. Anything that starts in Bee, such as a button note, gets filed in both. Anything you do directly in one, such as a typed agenda item, a takeaway, a review decision or a Schedule page edit, never reaches the other. `local:collect` also rewrites the local store's series from `series.local.json` on every run, so edit that file for local mode, not the Schedule page. Treat DynamoDB as the one real copy, and keep `local:` for development or a read-only look.
 
 ## Privacy
 

@@ -6,7 +6,7 @@
 // - a monthly budget and a Bedrock-only daily budget (email only),
 // - Cost Anomaly Detection on every service, alerting as soon as it finds one,
 // - a kill switch that sets registered projects' Lambda functions to 0
-//   concurrency. Undo with `corepack yarn guardrails:restore`.
+//   concurrency. Undo with `corepack yarn aws:guardrails-restore`.
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";

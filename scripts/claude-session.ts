@@ -3,17 +3,17 @@
 //
 //   yarn demo:claude           # local MCP server on the synthetic demo store
 //   MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' AWS_PROFILE=bee-agent \
-//     asm-exec -- corepack yarn demo:claude --real
+//     asm-exec -- corepack yarn aws:claude
 //                              # the deployed server, with your real sessions
 //
-// Demo mode seeds snapshots/demo-store.json if it's missing, starts the local
+// demo:claude seeds snapshots/demo-store.json if it's missing, starts the local
 // server on a free port with a token made for this run, and pre-approves the
-// server's tools. Real mode reads McpUrl from the BetweenSessions stack (or
+// server's tools. aws:claude (--real) reads McpUrl from the BetweenSessions stack (or
 // MCP_URL) and asks before each tool, as usual.
 //
 // Either way the token goes only into a temporary MCP config (0600, deleted
 // on exit) and is removed from Claude's environment, so nothing prints it.
-// Real mode shows personal content: run it in your own terminal only.
+// aws:claude shows personal content: run it in your own terminal only.
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -114,9 +114,9 @@ if (real) {
   token = process.env.MCP_TOKEN ?? "";
   if (token.length < 32 || token.startsWith("{{resolve")) {
     fail(
-      "--real needs the deployed server's token in MCP_TOKEN, resolved at runtime:\n" +
+      "aws:claude needs the deployed server's token in MCP_TOKEN, resolved at runtime:\n" +
         "  MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' AWS_PROFILE=bee-agent \\\n" +
-        "    asm-exec -- corepack yarn demo:claude --real",
+        "    asm-exec -- corepack yarn aws:claude",
     );
   }
   url = process.env.MCP_URL ?? (await stackOutput("McpUrl").catch((err) => fail(`couldn't read McpUrl: ${err.message}`)));

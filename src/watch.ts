@@ -1,4 +1,4 @@
-// The voice-note watcher (`yarn watch`): reads Bee's realtime stream and
+// The voice-note watcher (`yarn aws:watch`, `local:watch` or `demo:watch`): reads Bee's realtime stream and
 // prints, for each voice note, what Bee heard and what the collector will do
 // with it, using the same parser. A local testing probe only: the stream is
 // at-most-once, so the product never depends on it. Prints to the terminal

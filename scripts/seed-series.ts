@@ -1,8 +1,10 @@
 // Writes series config (the schedule rules) into the store, local file or
 // DynamoDB. Prints counts only, since your schedule is personal.
 //
-//   yarn seed --file series.local.json --store file
-//   yarn seed --file series.local.json --store dynamo   # TABLE_NAME, default between-sessions
+//   yarn aws:seed --file series.local.json   # TABLE_NAME, default between-sessions
+//
+// The local store needs no seeding: `yarn local:collect` writes
+// series.local.json into it on every run.
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { parseSeries } from "../src/series.js";

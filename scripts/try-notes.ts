@@ -1,7 +1,7 @@
 // Runs the Bedrock notes prompt on the synthetic test fixture (never real Bee
 // data) and prints the result. --write <path> also saves it as Markdown.
 //
-//   yarn try-notes [--model <id>] [--write docs/sample-note.md]
+//   yarn demo:notes [--model <id>] [--write docs/sample-note.md]
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { writeNotes } from "../src/notes/bedrock.js";
@@ -27,7 +27,7 @@ if (values.write) {
   const md = [
     "# Sample session note (synthetic)",
     "",
-    "Output of `yarn try-notes` on the synthetic fixture in `test/fixtures/`. No real Bee data.",
+    "Output of `yarn demo:notes` on the synthetic fixture in `test/fixtures/`. No real Bee data.",
     "",
     `Model: \`${notes.model}\``,
     "",

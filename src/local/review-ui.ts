@@ -1,4 +1,4 @@
-// Local review page (`yarn review-ui [--store file]`): series, sessions with
+// Local review page (`yarn aws:review`, `local:review` or `demo:review`): series, sessions with
 // their tags, markers, voice notes, the review queue and open agenda items,
 // on 127.0.0.1 only. Every request needs the right Host header (no DNS
 // rebinding) and the random token made at launch. Summaries stay out of the

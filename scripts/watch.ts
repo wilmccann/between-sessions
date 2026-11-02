@@ -1,9 +1,9 @@
-// Voice-note watcher: `yarn watch [--collect] [--shape] [--store file]`.
-// Shows each Bee voice note as it arrives, what Bee heard, and what the
-// collector will do with it. Prints to this terminal only and writes nothing
-// to disk. See src/watch.ts.
+// Voice-note watcher: `yarn aws:watch`, `yarn local:watch` or `yarn demo:watch`,
+// with [--collect] [--shape]. Shows each Bee voice note as it arrives, what Bee
+// heard, and what the collector will do with it. Prints to this terminal only
+// and writes nothing to disk. See src/watch.ts.
 //   --collect     when a note turns READY, run the collector Lambda once and
-//                 print its counts
+//                 print its counts (aws:watch only)
 //   --shape       no text at all: kinds, times and verdicts only
 //   --store file  series from the local file store instead of DynamoDB
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
@@ -18,6 +18,15 @@ const flag = (name: string) => args.includes(name);
 const storeArg = args.find((a) => a.startsWith("--store="))?.slice(8) ?? (args.includes("--store") ? args[args.indexOf("--store") + 1] : "dynamo");
 const shape = flag("--shape");
 const collect = flag("--collect");
+// --collect runs the deployed Lambda, which writes to DynamoDB; with the file
+// store that would file notes somewhere other than the store being watched.
+if (collect && storeArg === "file") {
+  console.error(
+    "--collect runs the deployed collector, which writes to DynamoDB, not the local store.\n" +
+      "Use `yarn aws:watch --collect`, or run `yarn local:collect` in another terminal.",
+  );
+  process.exit(1);
+}
 const COLLECTOR = "between-sessions-collector";
 const SERIES_REFRESH = 5 * 60_000;
 const BACKOFF_START = 5_000;
