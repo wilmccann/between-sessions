@@ -18,6 +18,7 @@
     "check:remote": "tsx scripts/check-remote.ts",
     "seed": "tsx scripts/seed-series.ts",
     "demo:seed": "tsx scripts/demo-seed.ts",
+    "demo:claude": "tsx scripts/demo-claude.ts",
     "try-notes": "tsx scripts/try-notes.ts",
     "cdk": "cdk",
     "typecheck": "tsc --noEmit",

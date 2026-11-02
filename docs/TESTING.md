@@ -65,7 +65,15 @@ What the variables do:
 
 ### The MCP server
 
-In a second terminal, start the local MCP server on the same store:
+The quickest way is one command, which needs the [Claude Code](https://claude.com/claude-code) CLI:
+
+```bash
+corepack yarn demo:claude
+```
+
+It seeds the demo store if needed, starts the local MCP server with a token made for this run, and opens a new Claude Code session connected only to it, asking "What can I ask?". Type `/` for the prompts, or try "prep me for coaching". Quitting Claude stops the server.
+
+To run the pieces yourself instead, start the local MCP server on the same store in a second terminal:
 
 ```bash
 export MCP_TOKEN=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
@@ -114,4 +122,4 @@ Follow [Deploy to AWS](../README.md#deploy-to-aws) in the README. In short:
 2. `corepack yarn cdk deploy BetweenSessions` deploys the collector (every 15 minutes), the DynamoDB table and the MCP server behind API Gateway.
 3. `corepack yarn seed` writes your series.
 
-Then connect Claude Code to the printed `McpUrl`, and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails.
+Then connect Claude Code to the printed `McpUrl` (or open a session on it with `corepack yarn demo:claude --real`, see the README's [Connect Claude Code](../README.md#connect-claude-code)), and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails.
