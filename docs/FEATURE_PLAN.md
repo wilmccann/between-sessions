@@ -1,6 +1,6 @@
 # Feature plan: baseline
 
-Status: **baseline v1.1**, Oct 21, 2026 (v1.1 adds the Bee button with session markers to the MVP). This is the only plan: what's built, what's left, and how we build it, for the Fri Oct 23 submission and after. Change it by editing this file; tick [Built and left to build](#built-and-left-to-build) as work lands, and record decisions in [Decision log](#decision-log).
+Status: **v1.2, after the submission**, Nov 2, 2026. Submitted on Devpost Fri Oct 23. (v1.1, Oct 21, added the Bee button with session markers to the MVP.) This is the only plan: what's built, what's [next](#next), and how we build it. Change it by editing this file; tick [Built and left to build](#built-and-left-to-build) and [Next](#next) as work lands, and record decisions in [Decision log](#decision-log).
 
 Older plans and proposals are in [archive/](archive/README.md) for history only.
 
@@ -17,12 +17,12 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 **Left to build, MVP (in priority order):**
 - [x] [Menu](#1-menu-knowing-what-to-ask): server instructions, `help` tool, prompts, a next-step hint after every answer.
 - [x] [Since-last-session digest](#2-since-last-session-digest-the-time-between-sessions): `get_since_last_session`.
-- [ ] [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp): start and end markers, voice-note commands (debrief, agenda, takeaway), marked ad-hoc sessions, `remove_agenda_item`. Device tests A and C (Oct 21 evening) and D (Thu Oct 22, 4pm).
+- [x] [Bee button](#3-the-bee-button-capture-and-session-control-without-opening-anything-mvp): start and end markers, voice-note commands (debrief, agenda, takeaway), marked ad-hoc sessions, `remove_agenda_item`. Deployed; shown on a real Bee on Thu Oct 22 ([demo/DEMO_FALLBACK.md](demo/DEMO_FALLBACK.md), [demo-2/DEMO_FALLBACK_2.md](demo-2/DEMO_FALLBACK_2.md)).
 - [x] [Session tagging and review](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp): tags with best guesses, the review queue, `review_sessions` and `retag_session`, the brief's review line, Bee button retag commands.
 - [x] [When is my next session](#small-addition-when-is-my-next-session).
 
 **Cut for the submission:**
-- ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to "next". By Thu Oct 22 evening, Nova Lite and Nova 2 Lite both answered a test call, so the quotas are no longer 0. Voice stays cut for the submission.
+- ~~[Voice through Alexa](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)~~: Bedrock's Nova token quotas were still 0 in us-east-1 on the morning of Thu Oct 22, too late for Gates 1 to 3 before the 1pm ET hard stop. The demo is typed in Claude Code plus the Bee button. Voice moves to [Next](#next). By Thu Oct 22 evening, Nova Lite and Nova 2 Lite both answered a test call, so the quotas are no longer 0. Voice stays cut for the submission.
 
 **Testing tools (MVP, local only):**
 - [x] [Voice-note watcher](#testing-tools-mvp-local-only) `yarn aws:watch`: live view of what Bee heard and what the product will do with it, "Marty, test:" dry runs, `--collect`, `--shape`.
@@ -31,11 +31,28 @@ Older plans and proposals are in [archive/](archive/README.md) for history only.
 **Operations:**
 - [x] Switch the table to `RemovalPolicy.RETAIN` with deletion protection, so stored sessions can't be lost with the stack (deployed Thu Oct 22).
 
-**Submission (by Fri Oct 23, 12:00pm PDT):**
+**Submission (Fri Oct 23, 12:00pm PDT): done.**
 - [x] README updated for the new capabilities.
-- [ ] Demo video under 3 minutes.
-- [ ] Product feedback, and the friction log ([FRICTION_LOG.md](FRICTION_LOG.md)) brought up to date.
-- [ ] Push the public repo (only when the user says so).
+- [x] Demo video under 3 minutes.
+- [x] Product feedback, and the friction log ([FRICTION_LOG.md](FRICTION_LOG.md)) brought up to date.
+- [x] Push the public repo.
+
+**After the submission (Nov 2):**
+- [x] `yarn demo:claude` opens a Claude Code session on the synthetic demo store, and `yarn aws:claude` on the deployed server, with the token only in a temporary config.
+- [x] Every yarn command is named by where it acts (`aws:`, `local:`, `demo:`) with its flags built in; the README's "Who runs what" lists them.
+- [x] Tests no longer depend on today's date (226 pass).
+
+## Next
+
+In priority order. Pick one, then tick it here and log the decision.
+
+- [ ] **Tune on real data.** Use it for a few weeks of real sessions, then settle the open questions about capture keywords (4), the longest open-ended session (8) and which guesses file automatically (9).
+- [ ] **Voice through Alexa** ([capability 5](#5-voice-through-alexa-powered-by-bedrock-asking-without-a-screen)), cut for the submission. Nova Lite and Nova 2 Lite answered by Oct 22 evening; check the actual quota values first.
+- [ ] **Push delivery:** the brief the evening before a session, a takeaway nudge after one. Needs a privacy decision first, because content would leave AWS.
+- [ ] **claude.ai and Claude mobile connector.** Needs Cognito OAuth in front of the MCP server.
+- [ ] **Hosted review page**, so review works away from the Mac. Also needs a Cognito user pool. See [capability 4](#4-session-tagging-and-review-best-guesses-you-can-correct-mvp).
+- [ ] **Spoken reminders** (open question 2): a reminder became a Bee suggestion, not a todo; measure how fast.
+- [ ] **Small:** next time the `CostGuardrails` stack is deployed anyway, its kill switch email picks up the new `aws:guardrails-restore` name. Pass the same `-c alertEmail` as before, or the alert subscription is replaced.
 
 ## Build rules
 
@@ -378,9 +395,7 @@ The series config already has the weekday and start time, so the next session's 
 - The six generic `bee_*` tools (facts, todos, today, day, insights, search) from the parked proposal.
 - Live Bee calls from the MCP Lambda, and semantic (`--neural`) search.
 - Writes to Bee (completing todos, editing facts).
-- claude.ai / Claude mobile connector (needs Cognito OAuth).
-- Review web app (after Friday; needs a Cognito user pool). See capability 4.
-- Push delivery (brief the evening before a session, takeaway nudge after one). Strong idea for after Friday; needs a privacy decision because content would leave AWS.
+- The claude.ai connector, a hosted review page and push delivery moved to [Next](#next) on Nov 2.
 
 ## Open questions
 
@@ -413,3 +428,6 @@ The series config already has the weekday and start time, so the next session's 
 | Oct 22 | Reviewed the overnight build's defaults and kept them: command words need a session word or known series name; a named start for a new name creates an unscheduled series; two markers give an exact span; debriefs attach within 3 hours; unnamed starts go to the slot's series or Other, pending review; a series without capture keywords files its schedule slot as before; 48-hour receipts in every brief; a four-item spoken menu; a todo count, not todo text, in the digest. Changed one: "Not a session" never deletes your words; with no session before, takeaways and debriefs are kept under Other. |
 | Oct 22 | Two local-only testing tools join the MVP: a voice-note watcher on `bee stream` (with a `Test:` rehearsal prefix the collector ignores, and `--collect` for end-to-end checks in about a minute) and a local review page on 127.0.0.1 (read-only first, then edits). The stream stays a testing probe because its delivery is at-most-once; the hosted review web app stays after Friday. |
 | Oct 22 | Voice commands need the product's name first: "Marty" (or "Martin"). In watcher testing, four notes not meant as commands were filed for real (two series, a debrief on a real session, an agenda item, then a session from an open start) and had to be undone by hand; with the name they'd have been plain notes. A "Marty, ..." note that doesn't parse is reported as "didn't understand" instead of silently dropped. The name is checked in Bee's raw text, because Bee's cleanup drops it. Also: "no session..." counts only in a short note (it caught "No session this week, it got cancelled"); the watcher reloads series after each collector run; `bee-agent` gets `dynamodb:DeleteItem` so the review page's edits work. |
+| Oct 23 | Submitted on Devpost: demo video, product feedback and friction log. Alexa voice stayed cut. |
+| Nov 2 | Every yarn command is named by where it acts: `aws:` (the deployed stack and DynamoDB), `local:` (your own Bee into `snapshots/store.json`) and `demo:` (synthetic data), with its flags built in, so no command has a hidden default store. The old names are gone. `local:watch --collect` refuses, because `--collect` runs the deployed Lambda; there is no `local:seed`, because `local:collect` writes `series.local.json` into the local store on every run. |
+| Nov 2 | Next steps live in this plan's [Next](#next) list, in priority order: tune on real data, then Alexa voice, push delivery, the claude.ai connector and a hosted review page. |
