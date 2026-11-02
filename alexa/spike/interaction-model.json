@@ -1,0 +1,48 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "hello spike",
+      "intents": [
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "HelloIntent",
+          "slots": [],
+          "samples": ["say hi", "hello", "are you there"]
+        },
+        {
+          "name": "AgendaIntent",
+          "slots": [{ "name": "item", "type": "AMAZON.SearchQuery" }],
+          "samples": ["add {item} to my agenda", "put {item} on my agenda", "agenda {item}"]
+        },
+        {
+          "name": "AgendaSeriesIntent",
+          "slots": [
+            { "name": "item", "type": "AMAZON.SearchQuery" },
+            { "name": "series", "type": "SERIES" }
+          ],
+          "samples": ["add {item} to my {series} agenda"]
+        },
+        {
+          "name": "TakeawayIntent",
+          "slots": [{ "name": "takeaway", "type": "AMAZON.SearchQuery" }],
+          "samples": ["save a takeaway {takeaway}", "takeaway {takeaway}"]
+        }
+      ],
+      "types": [
+        {
+          "name": "SERIES",
+          "values": [
+            { "name": { "value": "therapy" } },
+            { "name": { "value": "coaching" } },
+            { "name": { "value": "interview", "synonyms": ["acme interview"] } },
+            { "name": { "value": "other" } }
+          ]
+        }
+      ]
+    }
+  }
+}

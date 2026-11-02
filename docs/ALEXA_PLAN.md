@@ -160,44 +160,84 @@ When no series is named, the existing `chooseSeries` rules pick one, and the rea
 
 ## Implementation plan
 
-**Phase 0: checks before building** (about 1 hour)
+### Step 1: fail fast (about 2 hours, no product code)
 
-| Step | Done when |
-|---|---|
-| Phone: Alexa app signed in to the developer account, English (US); note whether it's Alexa+ | Recorded in this doc |
-| Hello-world custom skill (console template), enabled from the Dev tab | "Alexa, open hello test" answers on the phone, including on Alexa+ |
-| Alexa Privacy settings | Recordings not saved |
-| ASK CLI: `npm install -g ask-cli`, `ask configure` (Login with Amazon) | `ask smapi list-skills-for-vendor` works |
+Test the assumptions that could kill the plan first, with throwaway parts and synthetic phrases only. Run the spikes in order and stop at the first failure. Record the results in [Spike results](#spike-results).
 
-**Phase 1** (about 1.5 to 2 days)
+| # | Riskiest assumption | Cheapest test | Time | If it fails |
+|---|---|---|---|---|
+| 1 | A development-stage classic skill opens in the Alexa app on the phone, even on an account with Alexa+ | The spike skill below, enabled from Your Skills, Dev. Try "Alexa, open hello spike" and the one-shot "Alexa, ask hello spike to say hi" | 30 min | Phase 1 is dead. Only the Alexa+ add-on is left, so spike 4 decides |
+| 2 | Alexa hears free text well enough for agenda items and takeaways | Say the 10 phrases below to the spike skill, which repeats what it heard. Also note whether `AgendaSeriesIntent` (free text plus a series) builds at all | 30 min | 7 or fewer of 10 right: drop voice writes. Alexa becomes read-only (brief, digest, next session) and the Bee button keeps capture. Smaller, still worth building |
+| 3 | The privacy trade-off is acceptable for therapy content | After spikes 1 and 2, open Alexa Privacy, review voice history: are your words kept, Alexa's answers, or both? Does "don't save recordings" stop it? | 15 min | Your call: limit Alexa to non-sensitive answers (next session, counts), or stop |
+| 4 | Phase 2 is reachable | Ask for Alexa+ for Builders Preview access. Nov 2: `@alexa-ai/cli` is not on the public npm registry (404), so the CLI comes through Amazon's CodeArtifact after access is granted; it also needs Node 24 | 15 min, then waiting | Park phase 2. It doesn't block phase 1 |
+
+Later, because they only change details: hands-free on this phone, whether Bee records Alexa's answers, and whether Cognito accepts the `resource` parameter (only once phase 2 is unblocked).
+
+**The spike skill** ([alexa/spike/](../alexa/spike/)): it echoes what it heard, stores nothing, logs nothing and sends no cards.
+1. In the [Alexa developer console](https://developer.amazon.com/alexa/console/ask), create a skill: name "Hello Spike", locale English (US), a custom model, the **Alexa-hosted (Node.js)** backend, and the "Start from scratch" template. No AWS stack or CLI is needed.
+2. Build tab, Interaction Model, JSON Editor: paste [interaction-model.json](../alexa/spike/interaction-model.json), Save, Build. If the build rejects `AgendaSeriesIntent`, note it in the results, delete that intent and build again.
+3. Code tab: replace `lambda/index.js` with [index.js](../alexa/spike/index.js), Save, Deploy.
+4. Test tab: set testing to Development and type "open hello spike" to check it.
+5. On the phone: Alexa app, Skills & Games, Your Skills, Dev, Hello Spike, enable. Then talk to it.
+6. When done, delete the skill in the console.
+
+**Phrases for spike 2** (synthetic). Count a phrase right when the words that would be stored are right, ignoring punctuation:
+
+1. "Add the work trip to my agenda"
+2. "Add sleep to my agenda"
+3. "Put asking for a raise on my agenda"
+4. "Add my sister's visit to my agenda"
+5. "Add feeling stuck at work to my agenda"
+6. "Add the Acme offer deadline to my agenda"
+7. "Save a takeaway: delegate earlier"
+8. "Takeaway: say no to the extra project"
+9. "Save a takeaway: walk after lunch"
+10. "Add the work trip to my coaching agenda" (`AgendaSeriesIntent`, if it built)
+
+#### Spike results
+
+| # | Date | Result | Notes |
+|---|---|---|---|
+| 1 | | | Alexa+ on the account? `open` and one-shot `ask` both work? |
+| 2 | | _ of 10 | Which words were misheard; did `AgendaSeriesIntent` build? |
+| 3 | | | What voice history keeps, with and without "don't save" |
+| 4 | Nov 2 | Not yet | `@alexa-ai/cli` is not on public npm; Preview access needed |
+
+### Step 2: phase 1, starting with one intent end to end
+
+If spikes 1 and 2 pass, build one read-only intent through the real path before any breadth: the phone, the development skill, `between-sessions-alexa` with the skill ID permission and user check, DynamoDB, and one spoken sentence back. That proves the last unknowns (the Lambda permission, cold start on the phone, your real series names through dynamic entities) in about half a day. Install the ASK CLI first (`npm install -g ask-cli`, `ask configure`; `ask smapi list-skills-for-vendor` works).
+
+**Phase 1** (about 1.5 to 2 days, after step 1 passes). If spike 2 failed, leave out the writes (use cases 7, 9, 10 and 12).
 
 | # | Step | Files | Done when |
 |---|---|---|---|
-| 1 | Speech renderers, with tests on synthetic data | `src/alexa/speech.ts`, `test/alexa-speech.test.ts` | Every tool view renders in at most 3 sentences; writes read back; no Bee text beyond one paraphrased sentence |
-| 2 | Handler: routing, skill and user checks, session attributes | `src/alexa/handler.ts`, `test/alexa-handler.test.ts`, `test/fixtures/alexa/*.json` (synthetic requests) | Every intent answers; a wrong skill ID or unknown user is refused; Fallback gives the boundary sentence |
-| 3 | `demo:alexa` scripted conversation | `scripts/alexa-demo.ts`, `package.json` | Prints a full conversation on the demo store |
-| 4 | Interaction model and skill manifest | `alexa/skill-package/` | `ask deploy --target skill-metadata` builds the model without errors |
-| 5 | Lambda, skill permission and output in the stack | `infra/stack.ts`, `src/aws/alexa-handler.ts` | `aws:deploy -c alexaSkillId=... -c alexaUserIds=...` deploys; only the skill can invoke the function |
-| 6 | Skill endpoint and dialog test | `alexa/skill-package/skill.json`, `aws:alexa-deploy`, `aws:alexa-dialog` | Use cases 1 to 11 pass in `ask dialog` |
-| 7 | On the phone | | Use cases 1 to 11 pass by voice; note misheard phrases and add samples |
+| 1 | One intent end to end: launch, help and `NextSessionIntent` only | `src/alexa/handler.ts`, `src/alexa/speech.ts`, `src/aws/alexa-handler.ts`, `infra/stack.ts`, `alexa/skill-package/` | On the phone, "Alexa, ask Between Sessions when my next session is" answers in one sentence; a request with another skill ID or user ID is refused; `aws:deploy -c alexaSkillId=... -c alexaUserIds=...` deploys and only the skill can invoke the function |
+| 2 | Speech renderers for every tool, with tests on synthetic data | `src/alexa/speech.ts`, `test/alexa-speech.test.ts` | Every tool view renders in at most 3 sentences; writes read back; no Bee text beyond one paraphrased sentence |
+| 3 | Handler for every intent: routing, session attributes, dynamic entities | `src/alexa/handler.ts`, `test/alexa-handler.test.ts`, `test/fixtures/alexa/*.json` (synthetic requests) | Every intent answers; Fallback gives the boundary sentence |
+| 4 | The full interaction model | `alexa/skill-package/` | `ask deploy --target skill-metadata` builds the model without errors |
+| 5 | Dialog test | `aws:alexa-deploy`, `aws:alexa-dialog` | Use cases 1 to 11 pass in `ask dialog` |
+| 6 | On the phone | | Use cases 1 to 11 pass by voice; note misheard phrases and add samples |
+| 7 | `demo:alexa` scripted conversation | `scripts/alexa-demo.ts`, `package.json` | Prints a full conversation on the demo store |
 | 8 | Docs | README (an "Alexa" section and the Who runs what table), `docs/TESTING.md`, feature plan capability 5 and Next | A new reader can set it up from the README |
 | 9 | Phase 1b: retag by voice, with confirmation | handler, model, tests | Use case 12 passes, and "no" changes nothing |
 
-**Phase 2** (about 2 to 3 days, only after its gates): Cognito and metadata routes, token checks in the MCP Lambda, latency measurement, the add-on package, simulator tests, phone tests.
-
 **Works when:** on the phone, with the Bee button and Claude unchanged, "Alexa, ask Between Sessions to prep me" answers in under about 3 seconds with at most three sentences, and "add the work trip to my agenda" shows up in Claude's `list_agenda` straight away.
+
+### Step 3: phase 2, only after its gates
+
+About 2 to 3 days, once spike 4 and the gates in [Phase 2](#phase-2-alexa-mcp-add-on) pass: Cognito and metadata routes, token checks in the MCP Lambda, latency measurement, the add-on package, simulator tests, phone tests.
 
 ## Open questions
 
 | # | Question | How it gets answered |
 |---|---|---|
-| 1 | Does a development-stage classic skill still open on an account with Alexa+? | Phase 0 hello-world test |
-| 2 | Can an agenda phrase carry both a free-text item and a series name? | Model build in step 4, and phone tests in step 7 |
-| 3 | What does Alexa's activity history keep of the skill's answers, and can it be turned off? | Check Alexa Privacy after the first test |
-| 4 | Can a development-stage Alexa+ add-on be used from the phone without certification? | Phase 2 gate 3 |
+| 1 | Does a development-stage classic skill still open on an account with Alexa+? | Spike 1 |
+| 2 | Can an agenda phrase carry both a free-text item and a series name? | Spike 2, then the full model build and phone tests in phase 1 |
+| 3 | What does Alexa's activity history keep of the skill's answers, and can it be turned off? | Spike 3 |
+| 4 | Can a development-stage Alexa+ add-on be used from the phone without certification? | Spike 4, then phase 2 gate 3 |
 | 5 | Does Cognito accept the `resource` parameter (RFC 8707) that MCP clients send, and can the metadata live on our API's domain? | A spike against a test user pool before phase 2 step 1 |
 | 6 | Does the MCP Lambda stay within 500 ms including cold starts? | p95 measurement in phase 2 |
-| 7 | Does hands-free in the Alexa app work on this phone with the current app version? | Phase 0 |
+| 7 | Does hands-free in the Alexa app work on this phone with the current app version? | Any time; it only changes how you open Alexa |
 
 ## Sources
 
@@ -207,4 +247,4 @@ When no series is named, the existing `chooseSeries` rules pick one, and the rea
 - [Set up your development environment](https://developer.amazon.com/docs/alexaplus/add-ons/set-up-your-development-environment): Node 24+, `@alexa-ai/cli`.
 - [Alexa+ launches new ways to build experiences](https://developer.amazon.com/alexaplus/blogs/2026/07/alexa-plus-new-ways-to-build-experiences) (July 2026): "currently available in Preview".
 - [Test and Debug Your Skill](https://developer.amazon.com/en-US/docs/alexa/test/test-your-skill-overview.html): enabling a development skill in the Alexa app.
-- Hands-free in the Alexa app on Android: [Android Central](https://androidcentral.com/you-can-now-use-amazon-alexa-hands-free-android-phones), [TechCrunch](https://techcrunch.com/2020/07/07/amazon-adds-hands-free-alexa-to-its-alexa-mobile-app/); default assistant: [How-To Geek](https://www.howtogeek.com/351554/how-to-set-alexa-as-your-default-digital-assistant-on-android/). These are older articles; phase 0 checks them on the phone.
+- Hands-free in the Alexa app on Android: [Android Central](https://androidcentral.com/you-can-now-use-amazon-alexa-hands-free-android-phones), [TechCrunch](https://techcrunch.com/2020/07/07/amazon-adds-hands-free-alexa-to-its-alexa-mobile-app/); default assistant: [How-To Geek](https://www.howtogeek.com/351554/how-to-set-alexa-as-your-default-digital-assistant-on-android/). These are older articles; check them on the phone during the spikes.
