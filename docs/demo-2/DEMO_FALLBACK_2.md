@@ -1,6 +1,6 @@
 # Demo fallback, second take: the same evening at 22:35 (Thu Oct 22, 2026)
 
-The [first take](DEMO_FALLBACK.md) was recorded at 19:40. This one adds what happened after:
+The [first take](../demo/DEMO_FALLBACK.md) was recorded at 19:40. This one adds what happened after:
 - the empty-slot test at 21:00;
 - an unscheduled Finance session started and ended with the Bee button;
 - a debrief by voice;
@@ -18,9 +18,9 @@ Unchanged from the first take:
 - **"Tutoring series"** has three dated 5-minute slots tonight and one tomorrow morning, a minimum length of 3 minutes, and the keyword `tutoring`.
 - **"canceled weekly sync"** has a weekly slot, Thu 21:00 to 21:30, with a minimum length of 30 minutes and the keyword `sync`. Nothing is meant to happen in it.
 
-![Series on the Schedule page](demo-2/schedule-series.png)
+![Series on the Schedule page](schedule-series.png)
 
-![Dated sessions](demo-2/schedule-dated.png)
+![Dated sessions](schedule-dated.png)
 
 ## The results
 
@@ -36,15 +36,15 @@ Unchanged from the first take:
 
 The calendar shows the 21:00 slot as past, with no filed session:
 
-![Calendar](demo-2/schedule-calendar.png)
+![Calendar](schedule-calendar.png)
 
 Filed sessions: the two tutoring slots and the Finance session from the Bee button.
 
-![Filed sessions](demo-2/review-sessions.png)
+![Filed sessions](review-sessions.png)
 
 Three guesses wait for a person, each with Confirm, Move and "Not a session":
 
-![Review queue](demo-2/review-queue.png)
+![Review queue](review-queue.png)
 
 ## The Bee button: an unscheduled session
 
@@ -69,11 +69,11 @@ Both false starts were recorded:
 - "Hey." was kept as a plain note.
 - "Hey Marty!" was recorded as "unfiled, nothing after the name". It will be reported in the next brief.
 
-![Voice notes](demo-2/review-voice-notes.png)
+![Voice notes](review-voice-notes.png)
 
 The agenda item from the first take is still open on the Tutoring series:
 
-![Open agenda](demo-2/review-agenda.png)
+![Open agenda](review-agenda.png)
 
 ## What this adds
 

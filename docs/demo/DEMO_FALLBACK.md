@@ -16,9 +16,9 @@ A series can have a weekly slot, dated slots, or both. For the test, "Tutoring s
 
 "canceled weekly sync" is a weekly slot (Thu 21:00 to 21:30) where nothing is meant to happen: the empty-slot test.
 
-![Series on the Schedule page](demo/schedule-series.png)
+![Series on the Schedule page](schedule-series.png)
 
-![Dated sessions](demo/schedule-dated.png)
+![Dated sessions](schedule-dated.png)
 
 ## The results
 
@@ -34,15 +34,15 @@ Nobody touched the Bee button to start or end anything. The collector runs every
 
 The calendar ties each slot to the session filed in it:
 
-![Calendar](demo/schedule-calendar.png)
+![Calendar](schedule-calendar.png)
 
 The two filed sessions, with the evidence in each tag. Every row has the full Bee ids and copyable lookups: `bee conversations get <id> --json`, and the DynamoDB item behind the row.
 
-![Filed sessions](demo/review-sessions.png)
+![Filed sessions](review-sessions.png)
 
 The off-topic conversation in the 19:00 slot waits for a person, with Confirm, Move and "Not a session" on the row:
 
-![Review queue](demo/review-queue.png)
+![Review queue](review-queue.png)
 
 ## A voice command through the Bee button
 
@@ -63,7 +63,7 @@ Between sessions, one hold-and-speak voice note: "Marty, agenda for tutoring. Do
 19:22:29 update-conversation 11564440 COMPLETED
 ```
 
-![Open agenda](demo/review-agenda.png)
+![Open agenda](review-agenda.png)
 
 Every voice note is listed with what it did:
 - **"filed":** the agenda item above.
@@ -72,14 +72,14 @@ Every voice note is listed with what it did:
 
 Note text stays hidden behind "show".
 
-![Voice notes](demo/review-voice-notes.png)
+![Voice notes](review-voice-notes.png)
 
 ## What this shows
 
 - **Real Bee data, Bee CLI in code:** the collector Lambda ships the Bee CLI's Linux binary and runs `bee conversations list`, `bee insights list`, `bee journals list` and `bee todos list`. The local watcher follows `bee stream`.
 - **Schedule-only capture works for short slots:** only the minutes inside the slot count. So Bee's long conversations (34 to 40 minutes here, around 5-minute slots) still file into the right slot.
 - **Unsure guesses wait for a person:** a slot with no keyword in Bee's summary goes to review instead of being filed.
-- **AWS backend:** Lambda, EventBridge Scheduler, DynamoDB and Secrets Manager. See the [README](../README.md#architecture).
+- **AWS backend:** Lambda, EventBridge Scheduler, DynamoDB and Secrets Manager. See the [README](../../README.md#architecture).
 
 ## What we learned (also in the friction log)
 

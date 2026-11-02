@@ -12,8 +12,8 @@ Four ways to try it, from no setup at all to a full deploy. Paths 1 and 2 need n
 ## 1. Read the real-device walkthrough
 
 These two pages show what the demo video shows, with screenshots from a real Bee on Thu Oct 22, 2026:
-- [DEMO_FALLBACK.md](DEMO_FALLBACK.md), as of 19:40: tutoring slots filed from the schedule alone, an off-topic conversation sent to review, and a voice command through the Bee button.
-- [DEMO_FALLBACK_2.md](DEMO_FALLBACK_2.md), as of 22:35: adds a canceled slot that stayed empty, and an unscheduled session started and ended by voice.
+- [DEMO_FALLBACK.md](demo/DEMO_FALLBACK.md), as of 19:40: tutoring slots filed from the schedule alone, an off-topic conversation sent to review, and a voice command through the Bee button.
+- [DEMO_FALLBACK_2.md](demo-2/DEMO_FALLBACK_2.md), as of 22:35: adds a canceled slot that stayed empty, and an unscheduled session started and ended by voice.
 
 ## 2. Run it on localhost with synthetic data
 
