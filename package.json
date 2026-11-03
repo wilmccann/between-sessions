@@ -29,6 +29,7 @@
     "demo:review": "STORE_FILE=snapshots/demo-store.json BEE_BIN=test/fixtures/fake-bee.mjs BEE_DAYS=60 tsx src/local/review-ui.ts --store file",
     "demo:watch": "STORE_FILE=snapshots/demo-store.json BEE_BIN=test/fixtures/fake-bee.mjs tsx scripts/watch.ts --store file",
     "demo:notes": "tsx scripts/try-notes.ts",
+    "demo:alexa": "STORE_FILE=snapshots/demo-store.json tsx scripts/alexa-demo.ts",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "cdk": "cdk"
