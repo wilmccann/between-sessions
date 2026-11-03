@@ -351,6 +351,24 @@ export function renderNoTakeawaySession(series: Series, discreet: boolean): Spee
   );
 }
 
+// --- Yes and no to the last question ---------------------------------------
+
+// A "yes" to a question that needs words from you: how to say them.
+const HINTS: Record<string, string> = {
+  agenda: "Say add, then the item, to my agenda.",
+  takeaway: "Say save a takeaway, then your takeaway.",
+  retag: "Say that was, then the series, or that wasn't a session.",
+};
+export type Hint = keyof typeof HINTS;
+
+export function renderHint(hint: Hint): Speech {
+  return answer([HINTS[hint] ?? HINTS.agenda], WHAT_NEXT);
+}
+
+export function renderOkay(): Speech {
+  return answer(["OK."], WHAT_NEXT);
+}
+
 // --- Retag (phase 1b), with confirmation -----------------------------------
 
 export interface RetagTarget {
