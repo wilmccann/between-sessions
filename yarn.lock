@@ -969,6 +969,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ask-sdk-model@npm:^1.86.0":
+  version: 1.86.0
+  resolution: "ask-sdk-model@npm:1.86.0"
+  checksum: 10c0/2e7c9fc84464595138d8265047b8439937964126927f10326db4442dc0d8709be2b22a9d940e8a6c09dd3fd67352edfa9661ae168af94993186bc0b3de2741df
+  languageName: node
+  linkType: hard
+
 "async-function@npm:^1.0.0":
   version: 1.0.0
   resolution: "async-function@npm:1.0.0"
@@ -1037,6 +1044,7 @@ __metadata:
     "@beeai/cli": "npm:0.8.0"
     "@modelcontextprotocol/sdk": "npm:^1.32.1"
     "@types/node": "npm:^22"
+    ask-sdk-model: "npm:^1.86.0"
     aws-cdk: "npm:^2.1146.0"
     aws-cdk-lib: "npm:^2.273.0"
     constructs: "npm:^10.8.1"

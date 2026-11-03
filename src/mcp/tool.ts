@@ -15,6 +15,9 @@ export interface ToolDef {
   name: string;
   title: string;
   description: string;
+  // The one suggested next step (the MCP answers' `next`), for callers of
+  // `call`, such as the Alexa skill's reprompt.
+  readonly next?: string;
   register(server: McpServer, ctx: ToolContext): void;
   // Runs the tool directly, with the same input checks (throws on bad
   // input) and no "Next:" hint. For local tools such as the review page.
@@ -36,6 +39,7 @@ export function defineTool<S extends z.ZodRawShape>(def: {
     name,
     title,
     description,
+    next,
     register(server, ctx) {
       server.registerTool(name, { title, description, inputSchema, annotations }, (async (args: z.infer<z.ZodObject<S>>) =>
         withNext(next, await run(args, ctx))) as never);

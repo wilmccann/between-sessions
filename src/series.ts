@@ -73,6 +73,8 @@ const SeriesSchema = z
     maxSessionMinutes: z.number().int().positive().default(120), // closes a start marker with no end
     insightWindowHours: z.number().int().positive().default(72),
     dated: z.array(DatedSchema).default([]),
+    // Alexa says only times and counts for this series (see src/alexa/speech.ts).
+    discreet: z.boolean().optional(),
   })
   .refine(
     (s) => [s.weekday, s.windowStart, s.windowEnd].every((v) => v === undefined) ||

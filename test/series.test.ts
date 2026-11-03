@@ -21,6 +21,15 @@ describe("series config", () => {
     assert.ok(noZone.timezone.length > 0);
   });
 
+  it("takes an optional discreet flag and parses series without it unchanged", () => {
+    const raw = [{ id: "x", name: "X", weekday: 2, windowStart: "17:00", windowEnd: "18:00" }];
+    const [plain] = parseSeries(JSON.stringify(raw));
+    assert.equal("discreet" in plain, false);
+    const [flagged] = parseSeries(JSON.stringify([{ ...raw[0], discreet: true }]));
+    assert.deepEqual(flagged, { ...plain, discreet: true });
+    assert.throws(() => parseSeries(JSON.stringify([{ ...raw[0], discreet: "yes" }])));
+  });
+
   it("rejects half a schedule", () => {
     assert.throws(() => parseSeries(JSON.stringify([{ id: "x", name: "X", weekday: 2 }])));
   });
