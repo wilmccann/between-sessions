@@ -319,7 +319,8 @@ class Turn {
       if (p.failure) return p.failure;
       const item = bestAgendaMatch(await this.openAgenda(p.series.id), words);
       if (!item) return { speech: say.renderNotOnAgenda(words, p.series, isDiscreet(p.series)) };
-      const r = await this.call("remove_agenda_item", { series: p.series.id, text: words.slice(0, 500) });
+      // The exact text, so the tool removes the item read back.
+      const r = await this.call("remove_agenda_item", { series: p.series.id, text: item.text });
       if (!r.ok) return { speech: say.renderNotOnAgenda(words, p.series, isDiscreet(p.series)) };
       this.forget(item.id);
       return { speech: say.renderAgendaRemoved(item.text, p.series, isDiscreet(p.series), r.next), offer: r.offer };
