@@ -24,10 +24,21 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { instructions } from "../src/mcp/capabilities.js";
 
 const real = process.argv.includes("--real");
 const DEMO_STORE = "snapshots/demo-store.json";
 const FIRST_PROMPT = "What can I ask?";
+
+// The server sends the same instructions when it connects, but an interactive
+// session can send the first prompt before that, and with no repo around,
+// Claude would answer as a coding assistant. So it gets them up front too.
+const PRODUCT_PROMPT = [
+  "This Claude Code session is Between Sessions, connected to its MCP server. Answer only through the Between Sessions tools. You have no file, shell or browser tools here, so don't offer coding or computer help.",
+  "If the Between Sessions tools aren't available yet, say they're still connecting and ask the user to repeat the question in a moment.",
+  "",
+  instructions(),
+].join("\n");
 
 const run = promisify(execFile);
 const tsx = (script: string, opts: Parameters<typeof spawn>[2]) =>
@@ -150,7 +161,7 @@ const env = { ...process.env };
 delete env.MCP_TOKEN;
 // The prompt goes first: --tools, --mcp-config and --allowedTools take lists
 // and would swallow it.
-const args = [FIRST_PROMPT, "--tools", "", "--mcp-config", configFile, "--strict-mcp-config"];
+const args = [FIRST_PROMPT, "--append-system-prompt", PRODUCT_PROMPT, "--tools", "", "--mcp-config", configFile, "--strict-mcp-config"];
 if (!real) args.push("--allowedTools", `mcp__${name}`);
 
 console.log(real ? `Opening Claude on ${url} (your real sessions)...` : `Opening Claude on the demo server (${url}, synthetic data)...`);
