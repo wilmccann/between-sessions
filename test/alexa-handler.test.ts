@@ -271,6 +271,70 @@ describe("Alexa handler: every intent", () => {
   });
 });
 
+describe("Alexa handler: retag by voice, with confirmation", () => {
+  const ACME = "acme-interview@2026-10-19T15:00:00.000Z";
+  const OTHER_REF = "other@2026-10-21T18:00:00.000Z";
+  const queue = async () => (await store.listReviewItems()).map((i) => `${i.seriesId}@${i.start}`);
+
+  it("asks first and retags only on yes, then moves to the next guess", async () => {
+    const c = conversation(config);
+    await c.say("ReviewIntent");
+    const asked = await c.say("RetagIntent", { series: "coaching" });
+    assert.match(asked, /^Move the 45-minute conversation on .+ to Coaching\?$/);
+    assert.equal(c.attributes.pending?.id, ACME);
+    assert.deepEqual(await queue(), [ACME, OTHER_REF], "nothing changes before the yes");
+    assert.match(await c.say("AMAZON.YesIntent"), /^Filed the .+ conversation under Coaching\. Anything else to review\?$/);
+    assert.deepEqual(await queue(), [OTHER_REF]);
+    assert.equal(c.attributes.pending, undefined);
+    // "That" is now the next guess on the list.
+    assert.match(await c.say("RetagIntent"), /^Mark the 30-minute conversation on .+ as not a session\?$/);
+    assert.match(await c.say("AMAZON.YesIntent"), /^Marked the Other session on .+ as not a session\./);
+    assert.deepEqual(await queue(), []);
+    assert.equal(await store.getLatestSession("other"), null);
+  });
+
+  it("changes nothing on no", async () => {
+    const c = conversation(config);
+    await c.say("ReviewIntent");
+    await c.say("RetagIntent");
+    const before = JSON.stringify(await Promise.all([store.listReviewItems(), store.listSessions("other", 10), store.listClaims().then((m) => [...m])]));
+    assert.match(await c.say("AMAZON.NoIntent"), /^OK, I left it as it was\./);
+    assert.equal(c.attributes.pending, undefined);
+    assert.match(await c.say("AMAZON.YesIntent"), /^There's nothing waiting for a yes or no\./, "a later yes doesn't retag");
+    const after = JSON.stringify(await Promise.all([store.listReviewItems(), store.listSessions("other", 10), store.listClaims().then((m) => [...m])]));
+    assert.equal(after, before);
+  });
+
+  it("refuses a missing, old or outdated pending retag", async () => {
+    assert.match(await conversation(config).say("RetagIntent", { series: "coaching" }), /^Ask which sessions need review first/);
+    assert.match(await conversation(config).say("AMAZON.YesIntent"), /^There's nothing waiting for a yes or no\./);
+
+    const t = Date.now();
+    const old = conversation(config);
+    await old.say("ReviewIntent");
+    config.now = t;
+    await old.say("RetagIntent", { series: "coaching" });
+    config.now = t + 6 * 60_000;
+    assert.match(await old.say("AMAZON.YesIntent"), /^That guess has changed since I read it/);
+    assert.deepEqual(await queue(), [ACME, OTHER_REF]);
+    config.now = undefined;
+
+    const gone = conversation(config);
+    await gone.say("ReviewIntent");
+    await gone.say("RetagIntent", { series: "coaching" });
+    await store.deleteReviewItem((await store.listReviewItems())[0]);
+    assert.match(await gone.say("AMAZON.YesIntent"), /^That guess has changed since I read it/);
+    assert.deepEqual(await queue(), [OTHER_REF]);
+  });
+
+  it("asks again for a series it doesn't know", async () => {
+    const c = conversation(config);
+    await c.say("ReviewIntent");
+    assert.match(await c.say("RetagIntent", { series: "zork" }), /^I don't know a series called zork\./);
+    assert.equal(c.attributes.pending, undefined);
+  });
+});
+
 describe("Alexa handler: discreet series", () => {
   it("gives discreet answers end to end", async () => {
     await store.putSeries({ ...therapy, discreet: true });
