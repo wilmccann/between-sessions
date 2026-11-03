@@ -5,7 +5,7 @@ Four ways to try it, from no setup at all to a full deploy. Paths 1 and 2 need n
 | Path | Needs | Time | What you see |
 |---|---|---|---|
 | [1. Read the real-device walkthrough](#1-read-the-real-device-walkthrough) | A browser | 5 min | One evening on a real Bee, with screenshots |
-| [2. Run it on localhost with synthetic data](#2-run-it-on-localhost-with-synthetic-data) | Node 22.18+ | 10 min | The review page, Schedule page, MCP server and voice-note watcher, on made-up data |
+| [2. Run it on localhost with synthetic data](#2-run-it-on-localhost-with-synthetic-data) | Node 22.18+ | 10 min | The review page, Schedule page, MCP server, voice-note watcher and an Alexa conversation, on made-up data |
 | [3. Run it locally with your own Bee](#3-run-it-locally-with-your-own-bee) | A Bee device and the Bee CLI | 20 min | The same tools on your own data |
 | [4. Deploy to AWS](#4-deploy-to-aws) | A Bee device and an AWS account | 30 min | The full product: collector every 15 minutes, remote MCP server |
 
@@ -104,6 +104,17 @@ corepack yarn demo:watch
 
 Look for `"Marty, test: start coaching session." -> Test: would be START, series coaching`. Stop it with Ctrl-C.
 
+### The Alexa skill
+
+The skill's handler runs without Alexa or AWS. This prints a scripted conversation covering every Alexa use case (launch, help, prep brief, since last session, next and last session, agenda add, list and remove, takeaway, review and retag) on the demo store:
+
+```bash
+corepack yarn demo:alexa              # full answers
+corepack yarn demo:alexa --discreet   # as if every series were in discreet mode
+```
+
+Each line is `You: ...` then `Alexa: ... (N sentences)`. Look for at most 3 sentences per answer, writes read back with the series ("Added to Coaching: the work trip."), and, with `--discreet`, no series names or item text ("Added to your agenda.", "You have 2 items on your agenda."). It talks to a temporary copy of the demo store, so runs don't change it.
+
 ## 3. Run it locally with your own Bee
 
 Needs a Bee device, and the [Bee CLI](https://www.npmjs.com/package/@beeai/cli) logged in with `bee login`. Follow [Run locally](../README.md#run-locally) in the README:
@@ -120,4 +131,4 @@ Follow [Deploy to AWS](../README.md#deploy-to-aws) in the README. In short:
 2. `corepack yarn aws:deploy` deploys the collector (every 15 minutes), the DynamoDB table and the MCP server behind API Gateway.
 3. `corepack yarn aws:seed --file series.local.json` writes your series.
 
-Then connect Claude Code to the printed `McpUrl` (or open a session on it with `corepack yarn aws:claude`, see the README's [Connect Claude Code](../README.md#connect-claude-code)), and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails.
+Then connect Claude Code to the printed `McpUrl` (or open a session on it with `corepack yarn aws:claude`, see the README's [Connect Claude Code](../README.md#connect-claude-code)), and hold the Bee button: "Marty, agenda for <series>: …". The README's [cost section](../README.md#cost) lists what it costs and the optional guardrails. To ask by voice in the Alexa app, follow the README's [Alexa](../README.md#alexa) section.

@@ -28,14 +28,17 @@ flowchart LR
     collector -. optional .-> bedrock[Amazon Bedrock<br/>notes and briefs]
     table --> mcp[MCP Lambda<br/>Streamable HTTP]
     apigw[API Gateway<br/>HTTP API, POST /mcp] --> mcp
+    table --> alexafn[Alexa Lambda<br/>optional, same tools]
   end
   api --> collector
-  clients[Claude Code, Alexa skill bridge,<br/>any MCP client] -->|Bearer token| apigw
+  clients[Claude Code,<br/>any MCP client] -->|Bearer token| apigw
+  phone[Alexa app on your phone] -->|skill ID and user ID checked| alexafn
 ```
 
 - **Collector Lambda** (`src/aws/collector.ts`, one run in `src/collector.ts`): Node 22 on arm64. It ships the Bee CLI's Linux binary from `@beeai/cli`, restores a file-store CLI login from Secrets Manager into `/tmp`, runs `bee conversations list`, `bee insights list`, `bee journals list` and `bee todos list` (all `--json`), and saves the login back if the CLI refreshed its token. Each run reads new Bee button notes, places sessions, files notes, updates the review queue and precomputes one digest per series.
 - **DynamoDB** (`between-sessions`): one table. Per series, `PK = SERIES#<id>` with `SK = CONFIG | SESSION#<start>#V#<collectedAt> | AGENDA#... | TAKEAWAY#... | DEBRIEF#... | BRIEF#... | DIGEST`. Shared partitions: `CLAIMS` (which session holds each Bee conversation id), `MARKERS` (Bee button start and end times), `JOURNALS` (what each voice note did, no text), `TALLIES` (running day counts) and `REVIEW` (guesses waiting for you). The table is retained if the stack is deleted, with deletion protection on.
 - **MCP Lambda** (`src/aws/mcp-handler.ts`): a stateless Streamable HTTP server with JSON responses. Tools answer from DynamoDB only, with no Bee or Bedrock calls on the request path.
+- **Alexa Lambda** (`src/aws/alexa-handler.ts`, answers in `src/alexa/`): only when deployed with a skill ID. It calls the same tool code as the MCP server and speaks at most three sentences (see [Alexa](#alexa)).
 - **Bedrock** (`src/notes/bedrock.ts`): when enabled, one Converse call per new session version writes a short session note and a prep brief.
 - Everything is one CDK stack, `BetweenSessions` (`infra/stack.ts`), in `us-east-1`.
 
@@ -74,7 +77,7 @@ When a request names no series, the tools use the only series, or the most recen
 
 The server also sends instructions (the menu and answer rules) on connect, adds one suggested next step to every answer, and offers prompts for `/` in Claude Code: `prep`, `since`, `agenda`, `takeaway`, `review` and `help`. All of these come from one capability list, `src/mcp/capabilities.ts`.
 
-Descriptions are written to be read aloud, for voice use through an Alexa skill bridge such as [alexa-skill-mcp-bridge](https://github.com/KayLerch/alexa-skill-mcp-bridge).
+Descriptions are written to be read aloud. For voice, the [Alexa](#alexa) skill calls the same tools directly, and each tool's next step becomes its spoken follow-up question.
 
 ## The Bee button
 
@@ -102,6 +105,7 @@ Command words are matched forgivingly ("and session" counts as "end session", an
 - `spokenNames`: other names you might say, for example `["coaching"]` for "Weekly coaching".
 - `captureKeywords`: words in Bee's summaries that point at the series. With them, a slot alone no longer files a session (the coaching slot in an off week waits for review instead).
 - `minOverlapMinutes` (10), `minDurationMinutes` (30), `maxSessionMinutes` (120) and `insightWindowHours` (72).
+- `discreet` (`true` or left out): Alexa says only times and counts for this series (see [Discreet mode](#discreet-mode)).
 
 ## Deploy to AWS
 
@@ -152,6 +156,52 @@ MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' \
 That session shows your real sessions, so run it in your own terminal. Button notes appear after the next collector run; run `corepack yarn aws:watch --collect` alongside it to collect as soon as Bee has a note.
 
 To smoke-test it without the token showing up, `corepack yarn aws:check` reads the URL from the stack and the token from `MCP_TOKEN`, and prints only shapes and counts.
+
+### Alexa
+
+Between Sessions can also answer by voice in the Alexa app on your phone, as a private, development-stage custom skill. Only your Amazon account can use it, and it is never submitted for certification. It needs no model, no OAuth and no public endpoint: a Lambda in the same stack (`between-sessions-alexa`) answers with the same tool code as the MCP server, from the same table. Each answer is three sentences or fewer and reads back every write. You can ask:
+
+- "open Between Sessions": what the Bee button filed lately, the next session and the menu
+- "prep me for coaching", "what's happened since my last session?", "when is my next session?", "what did we cover last session?"
+- "add the work trip to my agenda", "what's on my agenda?", "remove number two"
+- "save a takeaway: delegate earlier"
+- "which sessions need review?", then "that was coaching" or "that wasn't a session", and "yes" to confirm
+
+Agenda items and takeaways can't name their series in the same phrase (Alexa can't mix a free-text slot with another slot), so name it first ("prep me for coaching" or "what's on my coaching agenda"), which sets it for the rest of the conversation; otherwise the usual default applies and the read-back says which series it used. The skill never reads summaries, insights or transcripts aloud; the last session is one sentence of Bee's short summary.
+
+Set it up once:
+
+1. In the [Alexa developer console](https://developer.amazon.com/alexa/console/ask), create a skill: name "Between Sessions", locale English (US), the **Custom** model, and **Provision your own** backend (not Alexa-hosted), starting from scratch.
+2. Build tab, Interaction Model, **JSON Editor**: paste [`alexa/skill-package/interactionModels/custom/en-US.json`](alexa/skill-package/interactionModels/custom/en-US.json), then Save and **Build skill**. The model holds only generic series words; your own series names reach Alexa per conversation as dynamic entities.
+3. Test tab: set testing to **Development**.
+4. Copy the skill ID (the skill list's "Copy Skill ID", `amzn1.ask.skill....`) and deploy with it:
+   ```bash
+   corepack yarn aws:deploy -c alexaSkillId=amzn1.ask.skill....
+   ```
+   The stack prints `AlexaFunctionArn`. Only this skill can invoke the function, and with no user IDs yet it refuses everything.
+5. Build tab, **Endpoint**: choose AWS Lambda ARN, paste `AlexaFunctionArn` as the default region's endpoint, and Save.
+6. Find your Alexa user ID: in the Test tab, type "open between sessions". The skill answers "This skill isn't set up for this account."; copy `session.user.userId` (`amzn1.ask.account....`) from the JSON Input panel.
+7. Deploy again with both IDs (several user IDs are comma-separated; the IDs stay out of git):
+   ```bash
+   corepack yarn aws:deploy -c alexaSkillId=amzn1.ask.skill.... -c alexaUserIds=amzn1.ask.account....
+   ```
+8. Test in the Test tab ("open between sessions", "when is my next session"), then on the phone: open the Alexa app, signed in to the same Amazon account, with its language set to English (United States), and say "Alexa, open Between Sessions" or "Alexa, ask Between Sessions when my next session is". Say "Alexa exit" to leave the skill.
+
+**Every later deploy needs the same skill ID**, or the deploy removes the Alexa function. Pass the same `-c` flags each time, or export them once in your shell: `export ALEXA_SKILL_ID=amzn1.ask.skill.... ALEXA_USER_IDS=amzn1.ask.account....`.
+
+To see a whole conversation on synthetic data first, with no Alexa or AWS, run `corepack yarn demo:alexa` (or `demo:alexa --discreet`).
+
+The Lambda logs one line per request: the request type, intent name, outcome and duration, never what you said or what it answered.
+
+#### Discreet mode
+
+Alexa+ keeps a text transcript of every exchange in the Alexa app's chat history until the chat has been inactive for 30 days, even with voice recordings set to "Don't save", and that can't be turned off. Discreet mode limits what lands there, per series:
+
+- **Off by default.** The default is `DISCREET_BY_DEFAULT = false` in [`src/alexa/speech.ts`](src/alexa/speech.ts), so you hear full answers while setting up.
+- **What it changes:** for a discreet series, Alexa speaks only times and counts. The series is "your Tuesday session" (from its next session's weekday), never its name; no agenda item text, topics, insight titles or summaries; writes read back as "Added to your agenda." and "Saved your takeaway."; the agenda and the review queue as counts only; the rest is "in Claude". It changes only what Alexa says; Claude and the MCP tools are unchanged.
+- **Turn it on** for a series with `"discreet": true` in `series.local.json`, then `corepack yarn aws:seed --file series.local.json`. Do this for therapy before real use, then check one exchange in the Alexa app's chat history.
+
+Anything you say yourself, such as an agenda item, is in Alexa's transcript either way, so capture sensitive items with the Bee button or in Claude. See [Privacy in the Alexa plan](docs/ALEXA_PLAN.md#privacy) for the full trade-off.
 
 ### Turn on Bedrock notes
 
@@ -220,7 +270,7 @@ Two tools for checking the Bee button without waiting for the next collector run
 
 ## Who runs what
 
-AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: the collector every 15 minutes, the MCP server on each request, and the cost kill switch when the daily budget is exceeded. Everything else is a command a person runs on their own machine. Each command's prefix says which data it acts on, and `corepack yarn run` lists them all:
+AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: the collector every 15 minutes, the MCP server on each request, and the cost kill switch when the daily budget is exceeded. A fourth, the Alexa skill's, answers each Alexa request when you deploy with a skill ID (see [Alexa](#alexa)). Everything else is a command a person runs on their own machine. Each command's prefix says which data it acts on, and `corepack yarn run` lists them all:
 
 - **`aws:`** your deployed stack and its DynamoDB table, the one real copy of your data.
 - **`local:`** your own Bee, read into `snapshots/store.json` on your Mac, with no AWS.
@@ -229,7 +279,7 @@ AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: t
 | Command | What it does | When |
 |---|---|---|
 | `scripts/setup-bee-secret.sh` | A dedicated Bee CLI login for the collector, in Secrets Manager | Once, before the first deploy |
-| `yarn aws:deploy` | Deploys or updates the `BetweenSessions` stack | Once, then after code changes |
+| `yarn aws:deploy` | Deploys or updates the `BetweenSessions` stack (add `-c alexaSkillId=... -c alexaUserIds=...` for the Alexa skill) | Once, then after code changes |
 | `yarn aws:seed --file series.local.json` | Writes your recurring sessions to DynamoDB | Once, then when your schedule changes (or use the Schedule page) |
 | `yarn aws:claude` | A Claude Code session on the deployed server, without adding it to your config | Any time (optional) |
 | `yarn aws:brief` | Prints your prep brief in the terminal | Before a session (optional) |
@@ -243,6 +293,7 @@ AWS runs three Lambda functions on its own, which CDK bundles from `src/aws/`: t
 | `yarn demo:seed` | Writes (or resets) the synthetic demo store | First, and to start fresh |
 | `yarn demo:claude` | A Claude Code session on the demo store | Trying it ([docs/TESTING.md](docs/TESTING.md)) |
 | `yarn demo:mcp`, `yarn demo:review`, `yarn demo:watch` | The same tools on the demo store, with a fake Bee CLI | Trying it |
+| `yarn demo:alexa` (`--discreet`) | A scripted Alexa conversation on the demo store, printing what Alexa would say | Before setting up the skill, or after changing answers |
 | `yarn demo:notes` | The Bedrock notes prompt on a synthetic fixture | Before turning notes on |
 | `yarn test`, `yarn typecheck` | Tests (synthetic data only) and the type check | Developing |
 
