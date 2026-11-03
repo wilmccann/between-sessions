@@ -146,7 +146,7 @@ claude mcp add --transport http between-sessions "$URL" --header "Authorization:
 unset TOKEN
 ```
 
-Or open a one-off Claude Code session on it, without adding it to your config. Claude runs in an empty folder with its built-in tools off, so it can only use Between Sessions' tools. The token resolves at runtime and goes only into a temporary config file that is deleted when you quit:
+Or open a one-off Claude Code session on it, without adding it to your config. Claude runs in an empty folder outside the repo (`~/.cache/between-sessions/claude-session`, which Claude Code asks you to trust the first time) with its built-in tools off, so it can only use Between Sessions' tools. The token resolves at runtime and goes only into a temporary config file that is deleted when you quit:
 
 ```bash
 MCP_TOKEN='{{resolve:secretsmanager:between-sessions/mcp-token}}' \

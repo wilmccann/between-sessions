@@ -11,17 +11,18 @@
 // server's tools. aws:claude (--real) reads McpUrl from the BetweenSessions stack (or
 // MCP_URL) and asks before each tool, as usual.
 //
-// Either way Claude runs in an empty temporary folder with its built-in tools
-// off (no shell, no file reading), so it answers only through Between
-// Sessions' tools. The token goes only into a temporary MCP config (0600,
-// deleted on exit) and is removed from Claude's environment, so nothing
-// prints it.
+// Either way Claude runs in an empty folder outside this repo,
+// ~/.cache/between-sessions/claude-session (Claude Code asks you to trust it
+// the first time), with its built-in tools off (no shell, no file reading), so
+// it answers only through Between Sessions' tools. The token goes only into a
+// temporary MCP config (0600, deleted on exit) and is removed from Claude's
+// environment, so nothing prints it.
 // aws:claude shows personal content: run it in your own terminal only.
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { instructions } from "../src/mcp/capabilities.js";
@@ -153,10 +154,11 @@ const config = { mcpServers: { [name]: { type: "http", url, headers: { Authoriza
 writeFileSync(configFile, JSON.stringify(config), { mode: 0o600 });
 
 // Claude runs as the product, not as a coding assistant: in an empty folder
-// (so it loads none of this repo's files or instructions) with every built-in
-// tool off, so only Between Sessions' tools are left.
-const sessionDir = join(configDir, "session");
-mkdirSync(sessionDir);
+// outside the repo (so it loads none of this repo's files or instructions)
+// with every built-in tool off, so only Between Sessions' tools are left. The
+// folder stays put between runs, so Claude Code asks to trust it only once.
+const sessionDir = join(homedir(), ".cache", "between-sessions", "claude-session");
+mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
 const env = { ...process.env };
 delete env.MCP_TOKEN;
 // The prompt goes first: --tools, --mcp-config and --allowedTools take lists

@@ -70,7 +70,7 @@ The quickest way is one command, which needs the [Claude Code](https://claude.co
 corepack yarn demo:claude
 ```
 
-It seeds the demo store if needed, starts the local MCP server with a token made for this run, and opens a new Claude Code session connected only to it, asking "What can I ask?". Claude runs in an empty folder with its built-in tools off, so it answers as the product would, with no shell or file access. Type `/` for the prompts, or try "prep me for coaching". Quitting Claude stops the server.
+It seeds the demo store if needed, starts the local MCP server with a token made for this run, and opens a new Claude Code session connected only to it, asking "What can I ask?". Claude runs in an empty folder outside the repo (`~/.cache/between-sessions/claude-session`) with its built-in tools off, so it answers as the product would, with no shell or file access. The first time, Claude Code asks whether you trust that folder; it's empty, so choose "Yes, I trust this folder". Type `/` for the prompts, or try "prep me for coaching". Quitting Claude stops the server.
 
 To run the pieces yourself instead, start the local MCP server on the same store in a second terminal:
 
