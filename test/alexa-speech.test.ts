@@ -246,8 +246,8 @@ describe("Alexa speech: every renderer", () => {
         "Synthetic debrief text",
         LONG,
       ].map((s) => s.toLowerCase());
+      // Every answer, the launch greeting, help, fallback and errors included.
       for (const [name, s] of Object.entries(everything(series, true))) {
-        if (name === "launch" || name === "help" || name === "fallback" || name === "error") continue;
         const said = `${s.speech} ${s.reprompt ?? ""}`.toLowerCase();
         for (const word of forbidden) assert.ok(!said.includes(word), `${name} says "${word}": ${s.speech}`);
       }
@@ -281,6 +281,14 @@ describe("Alexa speech: every renderer", () => {
     assert.ok(!/[<>]/.test(s.speech));
     const r = renderReview({ ...review, sessions: [{ ...review.sessions[0], guess: "Synthetic <b> & co" }] }, all, false, "Next?", NOW);
     assert.ok(!/[<>]/.test(r.speech) && r.speech.includes("&amp;"), r.speech);
+    // Series names and agenda items come from the store, so they're escaped too.
+    const odd: Series = { ...coaching, name: "Synthetic R&D <x>", spokenNames: ["synthetic r&d <x>"] };
+    const items = { ...agenda, items: [{ ...agenda.items[0], text: "Synthetic a<b & c>d" }] };
+    for (const [name, s] of Object.entries({ ...everything(odd, false), storeList: renderAgendaList(items, odd, false, "Next?") })) {
+      const said = `${s.speech} ${s.reprompt ?? ""}`;
+      assert.ok(!/[<>]|&(?!amp;|lt;|gt;)/.test(said), `${name}: ${said}`);
+    }
+    assert.ok(everything(odd, false).next.speech.includes("synthetic r&amp;d &lt;x&gt;"));
   });
 
   it("keeps free text to one sentence", () => {
