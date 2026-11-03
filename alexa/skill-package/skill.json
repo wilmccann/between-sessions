@@ -1,0 +1,36 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "name": "Between Sessions",
+          "summary": "A private companion for your recurring 1:1 sessions, built on your Bee data.",
+          "description": "Between Sessions answers from your own AWS account: your prep brief, what has happened since your last session, when the next one is, your agenda and takeaways. A development-stage skill for the developer's own account; never submitted for certification.",
+          "examplePhrases": [
+            "Alexa, open between sessions",
+            "Alexa, ask between sessions when my next session is",
+            "Alexa, ask between sessions to prep me"
+          ],
+          "keywords": []
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["US"],
+      "testingInstructions": "Private development skill. Not for certification."
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": { "en-US": {} }
+    },
+    "apis": {
+      "custom": {
+        "endpoint": { "uri": "REPLACE_WITH_AlexaFunctionArn" }
+      }
+    }
+  }
+}

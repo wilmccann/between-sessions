@@ -1,0 +1,205 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "between sessions",
+      "intents": [
+        { "name": "AMAZON.HelpIntent", "samples": ["what can I ask", "what can you do", "what can I say", "what are my options"] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        { "name": "AMAZON.YesIntent", "samples": [] },
+        { "name": "AMAZON.NoIntent", "samples": [] },
+        {
+          "name": "PrepBriefIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "prep me",
+            "prep me for {series}",
+            "prep me for my {series} session",
+            "give me my prep brief",
+            "give me my {series} prep brief",
+            "my prep brief",
+            "prep brief for {series}",
+            "help me prepare",
+            "help me prepare for {series}",
+            "prepare me for my next session",
+            "prepare me for {series}",
+            "brief me",
+            "brief me for {series}",
+            "what should I bring up next time"
+          ]
+        },
+        {
+          "name": "SinceLastSessionIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "what's happened since my last session",
+            "what has happened since my last session",
+            "what happened since my last session",
+            "what's happened since my last {series} session",
+            "what's happened since {series}",
+            "since my last session",
+            "since my last {series} session",
+            "what's new since my last session",
+            "what's new since my last {series} session",
+            "catch me up",
+            "catch me up on {series}",
+            "anything new since my last session"
+          ]
+        },
+        {
+          "name": "NextSessionIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "when is my next session",
+            "when's my next session",
+            "when is my next {series} session",
+            "when's my next {series} session",
+            "when is {series}",
+            "when is my next {series}",
+            "when do I have {series} next",
+            "what time is my next session",
+            "what time is my {series} session",
+            "when do I see my {series} next",
+            "when is my next appointment"
+          ]
+        },
+        {
+          "name": "LastSessionIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "what did we cover last session",
+            "what did we cover last time",
+            "what did we talk about last session",
+            "what did we talk about last time",
+            "what did we cover in {series}",
+            "what did we cover in my last {series} session",
+            "what happened in my last session",
+            "what happened in my last {series} session",
+            "remind me what we covered",
+            "remind me about my last session",
+            "remind me about my last {series} session",
+            "tell me about my last session"
+          ]
+        },
+        {
+          "name": "AddAgendaItemIntent",
+          "slots": [{ "name": "item", "type": "AMAZON.SearchQuery" }],
+          "samples": [
+            "add {item} to my agenda",
+            "put {item} on my agenda",
+            "add {item} to the agenda",
+            "put {item} on the agenda",
+            "add {item} to my list for next time",
+            "add an agenda item {item}",
+            "new agenda item {item}",
+            "I want to bring up {item}",
+            "remind me to bring up {item}",
+            "next time I want to talk about {item}",
+            "I want to talk about {item} next time"
+          ]
+        },
+        {
+          "name": "ListAgendaIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "what's on my agenda",
+            "what is on my agenda",
+            "what's on my {series} agenda",
+            "what's on the agenda",
+            "what's on the agenda for {series}",
+            "read my agenda",
+            "read my {series} agenda",
+            "list my agenda",
+            "list my {series} agenda",
+            "my agenda",
+            "what do I want to bring up",
+            "what's on my list for next time"
+          ]
+        },
+        {
+          "name": "RemoveAgendaItemIntent",
+          "slots": [
+            { "name": "n", "type": "AMAZON.NUMBER" },
+            { "name": "item", "type": "AMAZON.SearchQuery" }
+          ],
+          "samples": [
+            "remove number {n}",
+            "delete number {n}",
+            "drop number {n}",
+            "take off number {n}",
+            "cross off number {n}",
+            "remove item {n}",
+            "remove item number {n}",
+            "remove {item} from my agenda",
+            "take {item} off my agenda",
+            "drop {item} from my agenda",
+            "delete {item} from my agenda",
+            "cross {item} off my agenda"
+          ]
+        },
+        {
+          "name": "SaveTakeawayIntent",
+          "slots": [{ "name": "takeaway", "type": "AMAZON.SearchQuery" }],
+          "samples": [
+            "save a takeaway {takeaway}",
+            "save takeaway {takeaway}",
+            "save my takeaway {takeaway}",
+            "save a takeaway that {takeaway}",
+            "my takeaway is {takeaway}",
+            "my takeaway was {takeaway}",
+            "the takeaway is {takeaway}",
+            "add a takeaway {takeaway}",
+            "note a takeaway {takeaway}",
+            "remember this takeaway {takeaway}"
+          ]
+        },
+        {
+          "name": "ReviewIntent",
+          "samples": [
+            "which sessions need review",
+            "which sessions need my review",
+            "what needs review",
+            "what needs my review",
+            "review my sessions",
+            "anything to review",
+            "are there sessions to review",
+            "what should I review",
+            "which guesses are waiting",
+            "what's waiting for review"
+          ]
+        },
+        {
+          "name": "RetagIntent",
+          "slots": [{ "name": "series", "type": "SERIES" }],
+          "samples": [
+            "that was {series}",
+            "it was {series}",
+            "that one was {series}",
+            "that was my {series} session",
+            "that was a {series} session",
+            "file it under {series}",
+            "move it to {series}",
+            "that wasn't a session",
+            "that was not a session",
+            "it wasn't a session",
+            "that's not a session",
+            "that one wasn't a session"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "SERIES",
+          "values": [
+            { "id": "therapy", "name": { "value": "therapy", "synonyms": ["therapist", "counseling"] } },
+            { "id": "coaching", "name": { "value": "coaching", "synonyms": ["coach", "coaching session"] } },
+            { "id": "interview", "name": { "value": "interview", "synonyms": ["interviews", "interview loop"] } },
+            { "id": "other", "name": { "value": "other", "synonyms": [] } }
+          ]
+        }
+      ]
+    }
+  }
+}
