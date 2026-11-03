@@ -29,10 +29,6 @@ const handlers = [
     handle: (input) => say(input, `Agenda. I heard: ${slot(input, "item")}.`, MORE),
   },
   {
-    canHandle: (input) => isIntent(input, "AgendaSeriesIntent"),
-    handle: (input) => say(input, `Agenda for ${slot(input, "series")}. I heard: ${slot(input, "item")}.`, MORE),
-  },
-  {
     canHandle: (input) => isIntent(input, "TakeawayIntent"),
     handle: (input) => say(input, `Takeaway. I heard: ${slot(input, "takeaway")}.`, MORE),
   },

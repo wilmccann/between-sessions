@@ -24,7 +24,7 @@ Target: the Alexa app on an Android phone (a Pixel 6a here), signed in to the sa
 
 ## Use cases
 
-Each answer is three sentences or fewer, ends with one suggested next step as a question, and reads back every write. Examples use synthetic series.
+Each answer is three sentences or fewer, ends with one suggested next step as a question, and reads back every write. Examples use synthetic series and show the default full answers; for a series in [discreet mode](#discreet-mode), Alexa says only times and counts.
 
 | # | Moment | You say | You hear | Tool | Phase |
 |---|---|---|---|---|---|
@@ -107,13 +107,13 @@ flowchart LR
 | `AddAgendaItemIntent` | "add {item} to my agenda", "put {item} on my agenda" | `item` (`AMAZON.SearchQuery`) | `add_agenda_item` |
 | `ListAgendaIntent` | "what's on my agenda" | `series` | `list_agenda` |
 | `RemoveAgendaItemIntent` | "remove number {n}", "remove {item} from my agenda" | `n` (`AMAZON.NUMBER`), `item` | `remove_agenda_item` |
-| `SaveTakeawayIntent` | "save a takeaway {takeaway}", "takeaway {takeaway}" | `takeaway` (`AMAZON.SearchQuery`) | `save_takeaway` |
+| `SaveTakeawayIntent` | "save a takeaway {takeaway}", "my takeaway is {takeaway}" (not the bare "takeaway {takeaway}": spike 2) | `takeaway` (`AMAZON.SearchQuery`) | `save_takeaway` |
 | `ReviewIntent` | "which sessions need review" | | `review_sessions` |
 | `RetagIntent` (1b) | "that was {series}", "that wasn't a session" | `series` | `retag_session`, after `AMAZON.YesIntent` |
 | `AMAZON.FallbackIntent` | anything else | | the boundary sentence |
 | Stop, Cancel, `AMAZON.NavigateHomeIntent` | | | ends the session |
 
-When no series is named, the existing `chooseSeries` rules pick one, and the read-back always names it ("Added to coaching: ..."), so a wrong pick is heard and can be fixed. A free-text slot may not combine reliably with a series slot in one phrase; if the model build or testing shows that, the agenda and takeaway intents drop `{series}` and rely on the read-back.
+When no series is named, the existing `chooseSeries` rules pick one, and the read-back always names it ("Added to coaching: ..."), so a wrong pick is heard and can be fixed. A free-text slot can't share a phrase with a series slot (spike 2, Nov 2: the model build rejects it), so the agenda and takeaway intents take no `{series}`. To aim at a series, name it first in a separate phrase ("what's on my coaching agenda" or "prep me for coaching"), which sets it for the rest of the session; otherwise `chooseSeries` picks and the read-back says which.
 
 **Code:**
 - `src/alexa/handler.ts`: routes each request to a tool through `ToolDef.call(args, { store })`, the same path the review page uses. Checks that `session.application.applicationId` is our skill ID and that `context.System.user.userId` is on the allowlist; anything else gets a polite refusal and is not logged. Keeps the last list read in session attributes, so "remove number two" refers to what you heard.
@@ -135,10 +135,31 @@ When no series is named, the existing `chooseSeries` rules pick one, and the rea
 
 **Time and cost:** a warm DynamoDB-backed answer takes a few hundred milliseconds, and a cold start a second or two, well inside about 8 s. No model and no provisioned concurrency, so the cost is a few Lambda requests a day.
 
+### Discreet mode
+
+Alexa+ keeps a text transcript of every exchange until the chat has been inactive for 30 days, and that can't be turned off (spike 3). Discreet mode limits what lands there: Alexa speaks only times and counts, never the series name, item text, topics or summaries, and points to Claude for the rest. It changes only what Alexa says; Claude and the MCP tools are unchanged.
+
+- **Off by default.** The default is a constant in the source, `DISCREET_BY_DEFAULT = false` in `src/alexa/speech.ts`, so you hear full answers while building and testing.
+- **Per series.** A series can override the default with an optional `discreet: true` in its config (`series.local.json`, written with `aws:seed`). The field is added to the series schema in `src/series.ts` as optional, so existing series need no change. There is no switch in the review page or Schedule page.
+- **Documented.** The README's Alexa section says that discreet mode exists, that it is off by default, and how to turn it on for a series.
+- **Turn it on for therapy before real use**, then check one exchange in the Alexa app's chat history.
+
+| | Full (default) | Discreet |
+|---|---|---|
+| The series | "your coaching session" | "your Tuesday session" (weekday and time, never the name) |
+| Prep brief | When the last session was, a one-line paraphrase, the agenda count and first item | "Your Tuesday session is at 5. You have 2 agenda items. The details are in Claude." |
+| Since last session | Days, conversations, topics that came back | Days and conversations only |
+| Last session | A one-sentence paraphrase | "It was on Tuesday. The summary is in Claude." |
+| Agenda list | The count and up to three items | The count only |
+| Writes (agenda, takeaway) | "Added to coaching: the work trip." | "Added to your agenda." |
+| Review queue | Time, length and guessed series | The count only |
+| Launch receipts | Counts and times | The same (already counts and times only) |
+
 ## Privacy
 
 - **Heard aloud.** Answers come out of the phone's speaker unless you wear earbuds. That's why answers stay short and never read summaries, insights or transcripts.
-- **Content leaves your AWS account.** What you say and what the skill answers pass through Amazon's Alexa service and can appear in Alexa's voice history. This is the same kind of decision as push delivery in the feature plan. Before using it with therapy content, set Alexa Privacy to not save voice recordings, and check what the activity history keeps.
+- **Content leaves your AWS account.** What you say and what the skill answers pass through Amazon's Alexa service. With "Don't save", recordings are deleted, but chat transcripts stay until the chat has been inactive for 30 days, readable in the Alexa app; you can only delete them by hand (spike 3). This is the same kind of decision as push delivery in the feature plan. [Discreet mode](#discreet-mode) keeps therapy answers to times and counts; anything you say yourself, such as an agenda item, is in the transcript either way, so sensitive items are better captured with the Bee button or in Claude.
+- **Three places, three sets of rules.** Bee keeps transcripts encrypted with keys only your device holds, with 14 days of memory on the free tier (Amazon's own claims). The collector copies summaries and insights into your AWS account, where they are kept indefinitely under your IAM controls; that is the point of the product, and outside Bee's encryption. Alexa then holds whatever it heard or said as text that Amazon can read, for 30 days after a chat goes quiet. Discreet mode limits that last step.
 - **Bee hears Alexa.** If you're wearing the Bee, it records the spoken answers as a conversation. That adds to "conversations since" and can bump topic counts in the digest. Earbuds avoid it; a later fix could ignore very short conversations in topic counts.
 - **Only you.** A development-stage skill is available only to the developer's own Amazon account, and the Lambda also checks your Alexa user ID. On a shared Echo, a voice profile check (`person.personId`) would be needed too; phase 1 targets the phone only.
 
@@ -167,7 +188,7 @@ Test the assumptions that could kill the plan first, with throwaway parts and sy
 | # | Riskiest assumption | Cheapest test | Time | If it fails |
 |---|---|---|---|---|
 | 1 | A development-stage classic skill opens in the Alexa app on the phone, even on an account with Alexa+ | The spike skill below, enabled from Your Skills, Dev. Try "Alexa, open hello spike" and the one-shot "Alexa, ask hello spike to say hi" | 30 min | Phase 1 is dead. Only the Alexa+ add-on is left, so spike 4 decides |
-| 2 | Alexa hears free text well enough for agenda items and takeaways | Say the 10 phrases below to the spike skill, which repeats what it heard. Also note whether `AgendaSeriesIntent` (free text plus a series) builds at all | 30 min | 7 or fewer of 10 right: drop voice writes. Alexa becomes read-only (brief, digest, next session) and the Bee button keeps capture. Smaller, still worth building |
+| 2 | Alexa hears free text well enough for agenda items and takeaways | Say the 10 phrases below to the spike skill, which repeats what it heard. (Nov 2: free text plus a series in one phrase doesn't build; see the results) | 30 min | 7 or fewer of 10 right: drop voice writes. Alexa becomes read-only (brief, digest, next session) and the Bee button keeps capture. Smaller, still worth building |
 | 3 | The privacy trade-off is acceptable for therapy content | After spikes 1 and 2, open Alexa Privacy, review voice history: are your words kept, Alexa's answers, or both? Does "don't save recordings" stop it? | 15 min | Your call: limit Alexa to non-sensitive answers (next session, counts), or stop |
 | 4 | Phase 2 is reachable | Ask for Alexa+ for Builders Preview access. Nov 2: `@alexa-ai/cli` is not on the public npm registry (404), so the CLI comes through Amazon's CodeArtifact after access is granted; it also needs Node 24 | 15 min, then waiting | Park phase 2. It doesn't block phase 1 |
 
@@ -175,7 +196,7 @@ Later, because they only change details: hands-free on this phone, whether Bee r
 
 **The spike skill** ([alexa/spike/](../alexa/spike/)): it echoes what it heard, stores nothing, logs nothing and sends no cards.
 1. In the [Alexa developer console](https://developer.amazon.com/alexa/console/ask), create a skill: name "Hello Spike", locale English (US), a custom model, the **Alexa-hosted (Node.js)** backend, and the "Start from scratch" template. No AWS stack or CLI is needed.
-2. Build tab, Interaction Model, JSON Editor: paste [interaction-model.json](../alexa/spike/interaction-model.json), Save, Build. If the build rejects `AgendaSeriesIntent`, note it in the results, delete that intent and build again.
+2. Build tab, Interaction Model, JSON Editor: paste [interaction-model.json](../alexa/spike/interaction-model.json), Save, Build. (An earlier version had an `AgendaSeriesIntent`; the build rejected it, see the results.)
 3. Code tab: replace `lambda/index.js` with [index.js](../alexa/spike/index.js), Save, Deploy.
 4. Test tab: set testing to Development and type "open hello spike" to check it.
 5. On the phone: Alexa app, Skills & Games, Your Skills, Dev, Hello Spike, enable. Then talk to it.
@@ -192,15 +213,15 @@ Later, because they only change details: hands-free on this phone, whether Bee r
 7. "Save a takeaway: delegate earlier"
 8. "Takeaway: say no to the extra project"
 9. "Save a takeaway: walk after lunch"
-10. "Add the work trip to my coaching agenda" (`AgendaSeriesIntent`, if it built)
+10. "Add what to do about the holidays to my agenda"
 
 #### Spike results
 
 | # | Date | Result | Notes |
 |---|---|---|---|
-| 1 | | | Alexa+ on the account? `open` and one-shot `ask` both work? |
-| 2 | | _ of 10 | Which words were misheard; did `AgendaSeriesIntent` build? |
-| 3 | | | What voice history keeps, with and without "don't save" |
+| 1 | Nov 2 | **Pass** (simulator and phone) | The account is on Alexa+. "open hello spike" hands off to the development-stage skill: Alexa+ says "Here's Hello Spike. Say 'Alexa exit' to get back to Alexa plus.", then the skill's own code answers. You stay in the skill until "Alexa exit". On the phone (Alexa+ app), "open hello spike" worked the same way, with no need to enable the skill from the Dev tab. The one-shot "Alexa, ask hello spike to say hi" also worked |
+| 2 | Nov 2 | **Pass**, 8 of 10 | By voice on the phone: #8 ("Takeaway: say no to the extra project") failed every time, about a dozen tries; the bare "takeaway ..." phrasing is unreliable, while "save a takeaway ..." (#7, #9) worked. Build: the model rejected "add {item} to my {series} agenda": "cannot include both a phrase slot and another intent slot". So a free-text item can't name its series in the same phrase. Voice accuracy still to test |
+| 3 | Nov 2 | **Text is kept**: your call | Alexa Privacy, Manage Your Alexa Data, "Voice Recordings and Transcripts" offers Don't retain, 3 months, 18 months or until deleted; set to Don't retain. Even so, the Alexa+ app's chat history kept a text transcript of later exchanges (including Alexa's answers), and of the 6:05 PM spike conversation, across a phone restart. Voice History listed only the "open hello spike" request (text and audio), not the turns inside the skill, which did show in the app's chat. Amazon's help page confirms it: with "Don't save", "chat transcripts and typed requests are kept until they've been inactive for 30 days", then deleted ([Delete Alexa Voice Recordings and Transcripts Automatically](https://www.amazon.com/gp/help/customer/display.html?nodeId=G68KUKTXN92WY3C3)). There is no setting to stop that; chats can be deleted by hand under Alexa Privacy, Review Voice History, and voice deletion ("delete what I just said") doesn't work with Alexa+ ([Ask Alexa to Delete Your Voice History](https://www.amazon.com/gp/help/customer/display.html?nodeId=GYRPHMGANH7M2BNH)) |
 | 4 | Nov 2 | Not yet | `@alexa-ai/cli` is not on public npm; Preview access needed |
 
 ### Step 2: phase 1, starting with one intent end to end
@@ -212,14 +233,16 @@ If spikes 1 and 2 pass, build one read-only intent through the real path before 
 | # | Step | Files | Done when |
 |---|---|---|---|
 | 1 | One intent end to end: launch, help and `NextSessionIntent` only | `src/alexa/handler.ts`, `src/alexa/speech.ts`, `src/aws/alexa-handler.ts`, `infra/stack.ts`, `alexa/skill-package/` | On the phone, "Alexa, ask Between Sessions when my next session is" answers in one sentence; a request with another skill ID or user ID is refused; `aws:deploy -c alexaSkillId=... -c alexaUserIds=...` deploys and only the skill can invoke the function |
-| 2 | Speech renderers for every tool, with tests on synthetic data | `src/alexa/speech.ts`, `test/alexa-speech.test.ts` | Every tool view renders in at most 3 sentences; writes read back; no Bee text beyond one paraphrased sentence |
+| 2 | Speech renderers for every tool, full and [discreet](#discreet-mode), with tests on synthetic data; the optional `discreet` series field | `src/alexa/speech.ts` (with `DISCREET_BY_DEFAULT = false`), `src/series.ts`, `test/alexa-speech.test.ts` | Every tool view renders in at most 3 sentences; writes read back; no Bee text beyond one paraphrased sentence; discreet output never contains the series name, item text, topics or summary text; existing series load unchanged |
 | 3 | Handler for every intent: routing, session attributes, dynamic entities | `src/alexa/handler.ts`, `test/alexa-handler.test.ts`, `test/fixtures/alexa/*.json` (synthetic requests) | Every intent answers; Fallback gives the boundary sentence |
 | 4 | The full interaction model | `alexa/skill-package/` | `ask deploy --target skill-metadata` builds the model without errors |
 | 5 | Dialog test | `aws:alexa-deploy`, `aws:alexa-dialog` | Use cases 1 to 11 pass in `ask dialog` |
 | 6 | On the phone | | Use cases 1 to 11 pass by voice; note misheard phrases and add samples |
 | 7 | `demo:alexa` scripted conversation | `scripts/alexa-demo.ts`, `package.json` | Prints a full conversation on the demo store |
-| 8 | Docs | README (an "Alexa" section and the Who runs what table), `docs/TESTING.md`, feature plan capability 5 and Next | A new reader can set it up from the README |
+| 8 | Docs | README (an "Alexa" section and the Who runs what table), `docs/TESTING.md`, feature plan capability 5 and Next | A new reader can set it up from the README; the README notes that discreet mode exists, is off by default, and how to turn it on for a series |
 | 9 | Phase 1b: retag by voice, with confirmation | handler, model, tests | Use case 12 passes, and "no" changes nothing |
+
+**Before real use:** turn on discreet mode for therapy (`discreet: true` in `series.local.json`, then `aws:seed`), and check one exchange in the Alexa app's chat history.
 
 **Works when:** on the phone, with the Bee button and Claude unchanged, "Alexa, ask Between Sessions to prep me" answers in under about 3 seconds with at most three sentences, and "add the work trip to my agenda" shows up in Claude's `list_agenda` straight away.
 
@@ -232,7 +255,7 @@ About 2 to 3 days, once spike 4 and the gates in [Phase 2](#phase-2-alexa-mcp-ad
 | # | Question | How it gets answered |
 |---|---|---|
 | 1 | Does a development-stage classic skill still open on an account with Alexa+? | Spike 1 |
-| 2 | Can an agenda phrase carry both a free-text item and a series name? | Spike 2, then the full model build and phone tests in phase 1 |
+| 2 | ~~Can an agenda phrase carry both a free-text item and a series name?~~ | **No** (spike 2 build, Nov 2): a phrase slot can't share an utterance with another slot. Name the series in an earlier phrase instead |
 | 3 | What does Alexa's activity history keep of the skill's answers, and can it be turned off? | Spike 3 |
 | 4 | Can a development-stage Alexa+ add-on be used from the phone without certification? | Spike 4, then phase 2 gate 3 |
 | 5 | Does Cognito accept the `resource` parameter (RFC 8707) that MCP clients send, and can the metadata live on our API's domain? | A spike against a test user pool before phase 2 step 1 |
