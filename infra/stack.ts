@@ -1,6 +1,7 @@
 // The BetweenSessions stack: a collector Lambda that runs the Bee CLI every
-// 15 minutes and stores matched sessions in DynamoDB, and a remote MCP server
-// (Lambda behind an HTTP API) that answers from that table.
+// 15 minutes and stores matched sessions in DynamoDB, a remote MCP server
+// (Lambda behind an HTTP API) that answers from that table, and, when a
+// skill ID is given, the Alexa skill's Lambda.
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
@@ -8,7 +9,7 @@ import { HttpApi, HttpMethod, HttpStage } from "aws-cdk-lib/aws-apigatewayv2";
 import { TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { AttributeType, BillingMode, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, type NodejsFunctionProps } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
@@ -169,5 +170,26 @@ export class BetweenSessionsStack extends Stack {
     new CfnOutput(this, "McpFunctionName", { value: mcp.functionName });
     new CfnOutput(this, "BeeSecretName", { value: BEE_SECRET });
     new CfnOutput(this, "McpTokenSecretName", { value: MCP_TOKEN_SECRET });
+
+    // The Alexa skill, only when its ID is given (-c alexaSkillId=..., or
+    // ALEXA_SKILL_ID exported), so the IDs never enter git. Deploying
+    // without it removes the function.
+    const alexaSkillId = String(this.node.tryGetContext("alexaSkillId") ?? process.env.ALEXA_SKILL_ID ?? "").trim();
+    const alexaUserIds = String(this.node.tryGetContext("alexaUserIds") ?? process.env.ALEXA_USER_IDS ?? "").trim();
+    if (alexaSkillId) {
+      const alexa = fn("Alexa", "src/aws/alexa-handler.ts", {
+        description: "Alexa skill for Between Sessions",
+        memorySize: 256,
+        timeout: Duration.seconds(7),
+        environment: { ALEXA_SKILL_ID: alexaSkillId, ALEXA_USER_IDS: alexaUserIds },
+      });
+      // Like the MCP server: reads sessions, writes agenda items, takeaways and retags.
+      table.grantReadWriteData(alexa);
+      alexa.addPermission("AlexaSkillInvoke", {
+        principal: new ServicePrincipal("alexa-appkit.amazon.com"),
+        eventSourceToken: alexaSkillId,
+      });
+      new CfnOutput(this, "AlexaFunctionArn", { value: alexa.functionArn });
+    }
   }
 }
