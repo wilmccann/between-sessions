@@ -16,7 +16,7 @@ import { handleAlexa, type AlexaConfig, type Attributes } from "../src/alexa/han
 import { sentenceCount } from "../src/alexa/speech.js";
 import { fileStore } from "../src/store/file-store.js";
 import type { SessionStore } from "../src/store/types.js";
-import { seedBeeTab } from "../test/fixtures/review-seed.js";
+import { seedBeeTab, seedDemoDigests } from "../test/fixtures/review-seed.js";
 
 const DEMO_STORE = process.env.STORE_FILE ?? "snapshots/demo-store.json";
 const discreet = process.argv.includes("--discreet");
@@ -26,7 +26,9 @@ const SKILL_ID = "amzn1.ask.skill.00000000-demo";
 const USER_ID = "amzn1.ask.account.DEMOUSER";
 
 if (!existsSync(DEMO_STORE)) {
-  await seedBeeTab(fileStore(DEMO_STORE));
+  const fresh = fileStore(DEMO_STORE);
+  await seedBeeTab(fresh);
+  await seedDemoDigests(fresh);
   console.log(`Wrote ${DEMO_STORE}: synthetic data only.`);
 }
 const dir = await mkdtemp(join(tmpdir(), "between-sessions-alexa-"));
@@ -34,17 +36,9 @@ const copy = join(dir, "store.json");
 await copyFile(DEMO_STORE, copy);
 const base = fileStore(copy);
 
-// A digest for coaching, so "since last session" has something to count.
-await base.putDigest({
-  seriesId: "coaching",
-  computedAt: new Date().toISOString(),
-  since: "2026-10-15T20:55:00.000Z",
-  conversations: 23,
-  todos: 1,
-  insightTitles: ["Synthetic insight"],
-  topics: [{ word: "budget", count: 3 }, { word: "travel", count: 2 }],
-  partial: false,
-});
+// Digests, so "since last session" has something to count, even on a demo
+// store seeded before demo:seed wrote them.
+await seedDemoDigests(base);
 
 // --discreet: every series reads as discreet; nothing is written.
 const store: SessionStore = discreet

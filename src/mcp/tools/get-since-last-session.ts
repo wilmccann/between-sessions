@@ -15,7 +15,7 @@ export default defineTool({
   annotations: { readOnlyHint: true },
   next: "Want your prep brief for the next session?",
   async run({ series: wanted }, { store }) {
-    const { series, why, failure } = await chooseSeries(store, wanted, "recent");
+    const { series, why, failure } = await chooseSeries(store, wanted, "digest");
     if (!series) return failure;
     if (series.id === OTHER_ID) {
       return text("The since-last-session digest is off for Other, because it isn't a recurring series. Name a series to see its digest.");

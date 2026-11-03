@@ -274,7 +274,7 @@ class Turn {
     },
 
     SinceLastSessionIntent: async (req) => {
-      const p = await this.pick(req, "recent");
+      const p = await this.pick(req, "digest");
       if (p.failure) return p.failure;
       if (p.series.id === OTHER_ID) return { speech: say.renderSinceOff() };
       const r = await this.call<SinceView>("get_since_last_session", { series: p.series.id });

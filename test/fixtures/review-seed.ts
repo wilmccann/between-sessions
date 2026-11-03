@@ -71,6 +71,33 @@ export async function seed(store: TableStore) {
 
 // The seed, plus the other things Marty can do with a voice note or
 // conversation, for the Bee data tab (ids match test/fixtures/bee-tab.ts).
+// The collector computes digests, and it never runs on the demo store, so the
+// demo gets made-up ones for its two recurring series. `since` is each one's
+// last session end in `seed`.
+export async function seedDemoDigests(store: TableStore, now = Date.now()) {
+  const computedAt = new Date(now).toISOString();
+  await store.putDigest({
+    seriesId: therapy.id,
+    computedAt,
+    since: "2026-10-20T22:00:00.000Z",
+    conversations: 31,
+    todos: 2,
+    insightTitles: ["Synthetic: steadier mornings"],
+    topics: [{ word: "sleep", count: 4 }, { word: "work", count: 2 }],
+    partial: false,
+  });
+  await store.putDigest({
+    seriesId: coaching.id,
+    computedAt,
+    since: "2026-10-15T20:55:00.000Z",
+    conversations: 23,
+    todos: 1,
+    insightTitles: ["Synthetic insight"],
+    topics: [{ word: "budget", count: 3 }, { word: "travel", count: 2 }],
+    partial: false,
+  });
+}
+
 export async function seedBeeTab(store: TableStore) {
   await seed(store);
   await store.putClaims([{ conversationId: 900555, seriesId: "", sessionStart: "", source: "you", status: "rejected" }]);

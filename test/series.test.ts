@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, it } from "node:test";
+import type { Purpose } from "../src/choose.js";
 import { chooseSeries } from "../src/mcp/tool.js";
 import { prepBrief } from "../src/mcp/views.js";
 import { matchSeriesName, newSeries, otherSeries, parseSeries } from "../src/series.js";
@@ -113,7 +114,7 @@ describe("chooseSeries", () => {
     store = fileStore(join(await mkdtemp(join(tmpdir(), "bs-series-")), "store.json"));
     for (const s of meetingTypes) await store.putSeries(s);
   });
-  const chosen = async (wanted: string | undefined, purpose: "recent" | "next") => {
+  const chosen = async (wanted: string | undefined, purpose: Purpose) => {
     const c = await chooseSeries(store, wanted, purpose, NOW);
     return c.series ? { id: c.series.id, why: c.why } : { failure: (c.failure.content[0] as { text: string }).text };
   };
@@ -158,6 +159,20 @@ describe("chooseSeries", () => {
     await bare.putSessionVersion(other.id, session("2026-10-21T10:00:00-04:00", "2026-10-21T11:00:00-04:00"));
     assert.equal((await chooseSeries(bare, undefined, "next", NOW)).series?.id, "acme-interview");
     assert.equal((await chooseSeries(bare, undefined, "recent", NOW)).series?.id, "other");
+  });
+
+  it("looks back past Other for the digest, whose digest is off", async () => {
+    await store.putSessionVersion(therapy.id, session("2026-10-20T17:00:00-04:00", "2026-10-20T18:00:00-04:00"));
+    await store.putSessionVersion(other.id, session("2026-10-21T10:00:00-04:00", "2026-10-21T11:00:00-04:00"));
+    assert.equal((await chosen(undefined, "recent")).id, "other");
+    assert.deepEqual(await chosen(undefined, "digest"), {
+      id: "therapy",
+      why: "Using Weekly therapy, your most recent session.",
+    });
+    const bare = fileStore(join(await mkdtemp(join(tmpdir(), "bs-series-")), "store.json"));
+    await bare.putSeries(acme);
+    await bare.putSeries(other);
+    assert.equal((await chooseSeries(bare, undefined, "digest", NOW)).series?.id, "acme-interview");
   });
 });
 
